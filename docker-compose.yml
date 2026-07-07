@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: wesualise-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wesualise
+      POSTGRES_PASSWORD: wesualise
+      POSTGRES_DB: wesualise
+    ports:
+      - "5432:5432"
+    volumes:
+      - wesualise_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wesualise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  wesualise_pgdata:

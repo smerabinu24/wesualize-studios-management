@@ -1,0 +1,149 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design System: "Data-Dense Dashboard" (ui-ux-pro-max)
+  Palette: Professional blue (#2563EB) + deal green (#059669)
+  Type: Fira Sans (body) / Fira Code (data, tabular figures)
+  All colors are semantic tokens. Never hardcode hex in components.
+*/
+
+@layer base {
+  :root {
+    --font-sans: "Fira Sans";
+    --font-mono: "Fira Code";
+
+    --background: 210 40% 98%; /* #F8FAFC */
+    --foreground: 222 47% 11%; /* #0F172A */
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%; /* #2563EB */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 91% 60%; /* #3B82F6 */
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 160 84% 31%; /* #059669 */
+    --accent-foreground: 0 0% 100%;
+
+    --success: 160 84% 31%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%; /* amber-500 */
+    --warning-foreground: 26 83% 14%;
+
+    --destructive: 0 73% 50%; /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+
+    --muted: 215 40% 96%; /* #F1F5FD */
+    --muted-foreground: 215 16% 47%;
+
+    --border: 214 50% 94%; /* #E4ECFC */
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.85rem;
+
+    /* Chart series — accessible, distinguishable (not red/green only) */
+    --chart-1: 221 83% 53%;
+    --chart-2: 160 84% 31%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 262 83% 58%;
+    --chart-5: 199 89% 48%;
+  }
+
+  .dark {
+    --background: 222 47% 7%; /* slate-950-ish */
+    --foreground: 210 40% 96%;
+
+    --card: 222 44% 11%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 44% 11%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%; /* lighter blue for dark surfaces */
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 221 83% 65%;
+    --secondary-foreground: 222 47% 8%;
+
+    --accent: 160 70% 45%; /* desaturated green */
+    --accent-foreground: 222 47% 8%;
+
+    --success: 160 70% 45%;
+    --success-foreground: 222 47% 8%;
+
+    --warning: 38 90% 55%;
+    --warning-foreground: 26 83% 10%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 22%;
+    --ring: 217 91% 60%;
+
+    --chart-1: 217 91% 65%;
+    --chart-2: 160 70% 50%;
+    --chart-3: 38 90% 58%;
+    --chart-4: 262 83% 68%;
+    --chart-5: 199 89% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Tabular figures for data columns, KPIs, timers (number-tabular rule) */
+  .tabular {
+    font-family: var(--font-mono), monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Visible focus rings for keyboard nav */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+}

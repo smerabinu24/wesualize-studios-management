@@ -30,13 +30,14 @@ export const authOptions: NextAuthOptions = {
           .create({ data: { userId: user.id, action: "auth.login", entityType: "User", entityId: user.id } })
           .catch(() => {});
 
+        // NOTE: never put avatarUrl here — it can be a large base64 data URL
+        // and would bloat the session cookie (causes 494 Request Header Too Large).
         return {
           id: user.id,
           email: user.email,
           role: user.role,
           name: user.employee?.name ?? user.email,
           employeeId: user.employee?.id ?? null,
-          avatarUrl: user.employee?.avatarUrl ?? null,
         };
       },
     }),
@@ -44,10 +45,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const u = user as unknown as { role: Role; employeeId: string | null; avatarUrl: string | null };
+        const u = user as unknown as { role: Role; employeeId: string | null };
         token.role = u.role;
         token.employeeId = u.employeeId;
-        token.avatarUrl = u.avatarUrl;
       }
       return token;
     },
@@ -56,7 +56,6 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub as string;
         session.user.role = token.role as Role;
         session.user.employeeId = (token.employeeId as string | null) ?? null;
-        session.user.avatarUrl = (token.avatarUrl as string | null) ?? null;
       }
       return session;
     },

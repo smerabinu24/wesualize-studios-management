@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, LogIn, LogOut, Clock, Plus } from "lucide-react";
+import { Play, Square, Clock, Plus } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge, Input, Label } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
@@ -52,7 +52,6 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
   const [newTitle, setNewTitle] = useState("");
   const [newProject, setNewProject] = useState("");
   const [logMsg, setLogMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const attSecs = useElapsed(active.attendance?.startedAt ?? null);
   const taskSecs = useElapsed(active.task?.startedAt ?? null);
 
   async function refresh() {
@@ -61,12 +60,6 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
     router.refresh();
   }
 
-  async function clock() {
-    setBusy(true);
-    await fetch("/api/time/clock", { method: "POST" });
-    await refresh();
-    setBusy(false);
-  }
   async function taskAction(action: "start" | "stop", taskId?: string) {
     setBusy(true);
     await fetch("/api/time/task", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, taskId }) });
@@ -95,32 +88,7 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Attendance */}
-        <Card>
-          <CardHeader><CardTitle>Workday</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            {active.attendance ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-success" />
-                  <span className="tabular text-3xl font-semibold">{hhmmss(attSecs)}</span>
-                </div>
-                <Button variant="destructive" disabled={busy} onClick={clock}><LogOut className="h-4 w-4" /> Clock out</Button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">You&apos;re not clocked in.</p>
-                <Button disabled={busy} onClick={clock}><LogIn className="h-4 w-4" /> Clock in</Button>
-              </>
-            )}
-            <div className="flex gap-4 border-t border-border/70 pt-3 text-xs text-muted-foreground">
-              <span>Today: <span className="tabular font-medium text-foreground">{fmtHours(totals.todayAttendance)}</span></span>
-              <span>This week: <span className="tabular font-medium text-foreground">{fmtHours(totals.weekAttendance)}</span></span>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4">
         {/* Task timer */}
         <Card>
           <CardHeader><CardTitle>Task timer</CardTitle></CardHeader>

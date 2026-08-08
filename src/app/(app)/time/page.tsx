@@ -34,7 +34,7 @@ export default async function TimePage() {
 
   return (
     <div>
-      <PageHeader title="Time Tracking" subtitle="Clock your workday and track time per task." />
+      <PageHeader title="Time Tracking" subtitle="Track time per task with a live timer or by logging hours." />
       <TimeClient
         initialActive={{
           attendance: active.attendance ? { startedAt: active.attendance.startedAt.toISOString() } : null,

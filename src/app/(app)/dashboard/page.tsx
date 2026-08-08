@@ -2,11 +2,13 @@ import {
   Users, UserCheck, FolderKanban, CheckCircle2, AlertTriangle,
   UserMinus, Layers, CalendarClock, ListChecks, Clock,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui/primitives";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Avatar } from "@/components/ui/primitives";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { CompletionTrend, WorkloadBars, StatusPie, DepartmentPerformance, UtilizationGauge } from "@/components/dashboard/charts";
 import { getDashboardKpis, getDashboardCharts, getTeamUtilization, getRisks } from "@/lib/bi";
+import { getTeamTime } from "@/lib/time";
 import { requireUser } from "@/lib/session";
+import { can } from "@/lib/rbac";
 
 const riskTone = { high: "destructive", medium: "warning", low: "muted" } as const;
 
@@ -22,6 +24,10 @@ export default async function DashboardPage() {
     getTeamUtilization(),
     getRisks(),
   ]);
+
+  // Time logged this week per person (managers/admins only). Show those with logged task time.
+  const showTeamTime = can(user.role, "analytics:view-team");
+  const teamTime = showTeamTime ? (await getTeamTime("week")).filter((e) => e.taskHours > 0) : [];
 
   return (
     <div className="space-y-6">
@@ -102,6 +108,44 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Time logged this week — hours per person, broken down by task */}
+      {showTeamTime && (
+        <section>
+          <Card className={cardHover}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Clock className="h-4 w-4" /> Time Logged This Week</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teamTime.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">No task time logged yet this week.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {teamTime.map((e) => (
+                    <li key={e.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={e.name} src={e.avatarUrl} size={32} />
+                        <div>
+                          <p className="text-sm font-medium">{e.name}</p>
+                          <div className="mt-0.5 flex flex-wrap gap-1.5">
+                            {e.byTask.slice(0, 4).map((t, i) => (
+                              <Badge key={i} tone="muted">
+                                {t.label} · <span className="tabular ml-0.5">{t.hours.toFixed(1)}h</span>
+                              </Badge>
+                            ))}
+                            {e.byTask.length > 4 && <Badge tone="muted">+{e.byTask.length - 4} more</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="tabular shrink-0 text-sm font-semibold">{e.taskHours.toFixed(1)}h</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

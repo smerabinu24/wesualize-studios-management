@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, LogIn, LogOut, Clock } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge } from "@/components/ui/primitives";
+import { Play, Square, LogIn, LogOut, Clock, Plus } from "lucide-react";
+import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge, Input, Label } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
 type Active = {
@@ -12,7 +12,10 @@ type Active = {
 };
 type Totals = { todayTask: number; weekTask: number; todayAttendance: number; weekAttendance: number };
 type TaskOpt = { id: string; title: string; project: string };
+type ProjectOpt = { id: string; name: string };
 type Entry = { id: string; kind: string; label: string; project: string; startedAt: string; endedAt: string };
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function useElapsed(startIso: string | null) {
   const [now, setNow] = useState(() => Date.now());
@@ -35,11 +38,20 @@ const fmtHours = (h: number) => `${h.toFixed(1)}h`;
 const fmtClock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 
-export function TimeClient({ initialActive, totals, tasks, recent }: { initialActive: Active; totals: Totals; tasks: TaskOpt[]; recent: Entry[] }) {
+export function TimeClient({ initialActive, totals, tasks, projects, recent }: { initialActive: Active; totals: Totals; tasks: TaskOpt[]; projects: ProjectOpt[]; recent: Entry[] }) {
   const router = useRouter();
   const [active, setActive] = useState(initialActive);
   const [picked, setPicked] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Manual "log time" form state
+  const [logDate, setLogDate] = useState(todayStr());
+  const [logHours, setLogHours] = useState("");
+  const [logTaskId, setLogTaskId] = useState("");
+  const [newTask, setNewTask] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newProject, setNewProject] = useState("");
+  const [logMsg, setLogMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const attSecs = useElapsed(active.attendance?.startedAt ?? null);
   const taskSecs = useElapsed(active.task?.startedAt ?? null);
 
@@ -60,6 +72,25 @@ export function TimeClient({ initialActive, totals, tasks, recent }: { initialAc
     await fetch("/api/time/task", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, taskId }) });
     await refresh();
     setBusy(false);
+  }
+
+  async function logTime(e: React.FormEvent) {
+    e.preventDefault();
+    setLogMsg(null);
+    const payload = newTask
+      ? { newTaskTitle: newTitle, projectId: newProject, date: logDate, hours: logHours }
+      : { taskId: logTaskId, date: logDate, hours: logHours };
+    setBusy(true);
+    const res = await fetch("/api/time/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      setLogMsg({ type: "success", text: "Time logged." });
+      setLogHours(""); setLogTaskId(""); setNewTitle(""); setNewProject(""); setNewTask(false);
+      router.refresh();
+    } else {
+      setLogMsg({ type: "error", text: data.error ?? "Could not log time." });
+    }
   }
 
   return (
@@ -124,6 +155,59 @@ export function TimeClient({ initialActive, totals, tasks, recent }: { initialAc
           </CardContent>
         </Card>
       </div>
+
+      {/* Manual end-of-day log */}
+      <Card>
+        <CardHeader><CardTitle>Log time</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={logTime} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+            <div>
+              <Label htmlFor="logDate">Date</Label>
+              <Input id="logDate" type="date" max={todayStr()} value={logDate} onChange={(e) => setLogDate(e.target.value)} required />
+            </div>
+
+            {newTask ? (
+              <>
+                <div>
+                  <Label htmlFor="newTitle">New task</Label>
+                  <Input id="newTitle" placeholder="Task title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="newProject">Project</Label>
+                  <Select id="newProject" value={newProject} onChange={(e) => setNewProject(e.target.value)} required>
+                    <option value="">Select project…</option>
+                    {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <div className="lg:col-span-2">
+                <Label htmlFor="logTask">Task</Label>
+                <Select id="logTask" value={logTaskId} onChange={(e) => setLogTaskId(e.target.value)} required>
+                  <option value="">Select a task…</option>
+                  {tasks.map((t) => <option key={t.id} value={t.id}>{t.title}{t.project ? ` · ${t.project}` : ""}</option>)}
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="logHours">Hours</Label>
+              <Input id="logHours" type="number" step="0.25" min="0.25" max="24" placeholder="e.g. 3.5" value={logHours} onChange={(e) => setLogHours(e.target.value)} required />
+            </div>
+
+            <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
+              <Button type="submit" disabled={busy}><Plus className="h-4 w-4" /> Log time</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setNewTask(!newTask); setLogTaskId(""); setNewTitle(""); setNewProject(""); }}>
+                {newTask ? "Pick an existing task" : "+ Log against a new task"}
+              </Button>
+              {logMsg && (
+                <span className={`text-sm ${logMsg.type === "error" ? "text-destructive" : "text-success"}`}>{logMsg.text}</span>
+              )}
+            </div>
+          </form>
+          <p className="mt-2 text-xs text-muted-foreground">Logged hours roll into the task&apos;s actual hours and your totals.</p>
+        </CardContent>
+      </Card>
 
       {/* Recent entries */}
       <div>

@@ -18,7 +18,7 @@ export default async function TimePage() {
     );
   }
 
-  const [active, totals, recent, tasks] = await Promise.all([
+  const [active, totals, recent, tasks, projects] = await Promise.all([
     getActiveEntries(user.employeeId),
     getEmployeeTotals(user.employeeId),
     getRecentEntries(user.employeeId),
@@ -28,6 +28,8 @@ export default async function TimePage() {
       select: { id: true, title: true, project: { select: { name: true } } },
       orderBy: { dueDate: "asc" },
     }),
+    // Projects — for logging against a brand-new task inline.
+    prisma.project.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (
@@ -42,6 +44,7 @@ export default async function TimePage() {
         }}
         totals={totals}
         tasks={tasks.map((t) => ({ id: t.id, title: t.title, project: t.project?.name ?? "" }))}
+        projects={projects}
         recent={recent.map((e) => ({
           id: e.id,
           kind: e.kind,

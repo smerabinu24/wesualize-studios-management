@@ -71,6 +71,58 @@ export async function stopRunningTask(employeeId: string) {
   return running;
 }
 
+/**
+ * Manually log time against a task for a chosen day (end-of-day entry).
+ * Either `taskId` (existing) OR `newTaskTitle`+`projectId` (create task inline).
+ * Creates a completed TimeEntry and rolls the hours into Task.actualHours.
+ */
+export async function logManualTaskTime(
+  employeeId: string,
+  opts: { taskId?: string; newTaskTitle?: string; projectId?: string; date: string; hours: number; note?: string }
+) {
+  if (!(opts.hours > 0) || opts.hours > 24) {
+    const err = new Error("Hours must be between 0 and 24.") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
+  let taskId = opts.taskId;
+  let projectId: string | null = opts.projectId ?? null;
+
+  if (!taskId) {
+    if (!opts.newTaskTitle || !opts.projectId) {
+      const err = new Error("Select a task, or give a new task title and project.") as Error & { status?: number };
+      err.status = 400;
+      throw err;
+    }
+    const created = await prisma.task.create({
+      data: { title: opts.newTaskTitle, projectId: opts.projectId, assigneeId: employeeId, status: "TODO" },
+    });
+    taskId = created.id;
+    projectId = opts.projectId;
+  } else {
+    const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+    if (!task) {
+      const err = new Error("Task not found") as Error & { status?: number };
+      err.status = 404;
+      throw err;
+    }
+    projectId = task.projectId;
+  }
+
+  const startedAt = new Date(`${opts.date}T09:00:00`);
+  const endedAt = new Date(startedAt.getTime() + opts.hours * 3_600_000);
+  const rounded = Math.round(opts.hours * 100) / 100;
+
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.timeEntry.create({
+      data: { employeeId, kind: TimeEntryKind.TASK, taskId, projectId, startedAt, endedAt, note: opts.note },
+    });
+    await tx.task.update({ where: { id: taskId! }, data: { actualHours: { increment: rounded } } });
+    return entry;
+  });
+}
+
 /** Start a task timer (stops any other running task first). */
 export async function startTask(employeeId: string, taskId: string) {
   await stopRunningTask(employeeId); // one task timer at a time

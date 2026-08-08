@@ -215,6 +215,23 @@ export async function getTeamTime(range: TimeRange = "week") {
   });
 }
 
+/** Delete one of the employee's own time entries; reverse its task-hour roll-in. */
+export async function deleteEntry(employeeId: string, entryId: string) {
+  const entry = await prisma.timeEntry.findUnique({ where: { id: entryId } });
+  if (!entry || entry.employeeId !== employeeId) {
+    const err = new Error("Entry not found") as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+  return prisma.$transaction(async (tx) => {
+    if (entry.kind === TimeEntryKind.TASK && entry.taskId && entry.endedAt) {
+      const hours = Math.round(hoursBetween(entry.startedAt, entry.endedAt) * 100) / 100;
+      await tx.task.update({ where: { id: entry.taskId }, data: { actualHours: { decrement: hours } } }).catch(() => {});
+    }
+    await tx.timeEntry.delete({ where: { id: entryId } });
+  });
+}
+
 /** Recent completed entries for the entries list. */
 export async function getRecentEntries(employeeId: string, take = 25) {
   return prisma.timeEntry.findMany({

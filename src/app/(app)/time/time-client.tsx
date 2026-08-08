@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, Clock, Plus } from "lucide-react";
+import { Play, Square, Clock, Plus, Trash2 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge, Input, Label } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
@@ -41,6 +41,7 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString([], { month: "s
 export function TimeClient({ initialActive, totals, tasks, projects, recent }: { initialActive: Active; totals: Totals; tasks: TaskOpt[]; projects: ProjectOpt[]; recent: Entry[] }) {
   const router = useRouter();
   const [active, setActive] = useState(initialActive);
+  const [entries, setEntries] = useState(recent);
   const [picked, setPicked] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -65,6 +66,19 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
     await fetch("/api/time/task", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, taskId }) });
     await refresh();
     setBusy(false);
+  }
+
+  async function removeEntry(id: string) {
+    if (!confirm("Delete this time entry? Its hours will be removed from the task.")) return;
+    setBusy(true);
+    const res = await fetch(`/api/time/entry/${id}`, { method: "DELETE" });
+    setBusy(false);
+    if (res.ok) {
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+      router.refresh();
+    } else {
+      alert("Could not delete that entry.");
+    }
   }
 
   async function logTime(e: React.FormEvent) {
@@ -180,13 +194,13 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
       {/* Recent entries */}
       <div>
         <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Clock className="h-4 w-4" /> Recent entries</h3>
-        {recent.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">No time logged yet.</p>
         ) : (
           <Table>
-            <Thead><tr><Th>Type</Th><Th>Details</Th><Th>Date</Th><Th>From–To</Th><Th className="text-right">Duration</Th></tr></Thead>
+            <Thead><tr><Th>Type</Th><Th>Details</Th><Th>Date</Th><Th>From–To</Th><Th className="text-right">Duration</Th><Th className="text-right">Actions</Th></tr></Thead>
             <tbody>
-              {recent.map((e) => {
+              {entries.map((e) => {
                 const secs = Math.floor((new Date(e.endedAt).getTime() - new Date(e.startedAt).getTime()) / 1000);
                 return (
                   <Tr key={e.id}>
@@ -195,6 +209,11 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
                     <Td className="text-sm text-muted-foreground">{fmtDay(e.startedAt)}</Td>
                     <Td className="tabular text-sm text-muted-foreground">{fmtClock(e.startedAt)}–{fmtClock(e.endedAt)}</Td>
                     <Td className="tabular text-right font-medium">{(secs / 3600).toFixed(2)}h</Td>
+                    <Td className="text-right">
+                      <Button variant="ghost" size="icon" disabled={busy} aria-label="Delete entry" onClick={() => removeEntry(e.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </Td>
                   </Tr>
                 );
               })}

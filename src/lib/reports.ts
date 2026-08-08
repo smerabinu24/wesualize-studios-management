@@ -9,7 +9,8 @@ export type ReportKey =
   | "project-completion"
   | "resource-allocation"
   | "workload"
-  | "deadline-risk";
+  | "deadline-risk"
+  | "time-log";
 
 export type ReportTable = { title: string; columns: string[]; rows: (string | number)[][] };
 
@@ -49,6 +50,22 @@ export async function buildReport(key: ReportKey): Promise<ReportTable> {
       const wl = await getEmployeeWorkload();
       const rows = wl.map((w) => [w.name, w.openTasks, w.overdueTasks, `${w.utilizationPct}%`, w.overloaded ? "OVERLOADED" : "OK"]);
       return { title: "Workload Distribution", columns: ["Employee", "Open Tasks", "Overdue", "Utilization", "Flag"], rows };
+    }
+    case "time-log": {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+      weekStart.setHours(0, 0, 0, 0);
+      const employees = await prisma.employee.findMany({
+        include: { timeEntries: { where: { endedAt: { not: null }, startedAt: { gte: weekStart } } } },
+        orderBy: { name: "asc" },
+      });
+      const hrs = (s: Date, e: Date) => (e.getTime() - s.getTime()) / 3_600_000;
+      const rows = employees.map((emp) => {
+        const att = emp.timeEntries.filter((t) => t.kind === "ATTENDANCE").reduce((h, t) => h + hrs(t.startedAt, t.endedAt!), 0);
+        const task = emp.timeEntries.filter((t) => t.kind === "TASK").reduce((h, t) => h + hrs(t.startedAt, t.endedAt!), 0);
+        return [emp.name, `${att.toFixed(1)}h`, `${task.toFixed(1)}h`, emp.timeEntries.length];
+      });
+      return { title: "Time Log (this week)", columns: ["Employee", "Attendance", "Task Hours", "Entries"], rows };
     }
     case "deadline-risk": {
       const health = await getProjectHealth();

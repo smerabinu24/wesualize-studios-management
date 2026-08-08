@@ -132,6 +132,7 @@ model Employee {
   projectMemberships ProjectMember[]
   tasks              Task[]          @relation("TaskAssignee")
   ledProjects        Project[]       @relation("ProjectLead")
+  timeEntries        TimeEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -175,9 +176,10 @@ model Project {
   status      ProjectStatus @default(PLANNING)
   priority    Priority      @default(MEDIUM)
 
-  members    ProjectMember[]
-  tasks      Task[]
-  milestones Milestone[]
+  members     ProjectMember[]
+  tasks       Task[]
+  milestones  Milestone[]
+  timeEntries TimeEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -238,6 +240,8 @@ model Task {
   actualHours    Float      @default(0)
   completedAt    DateTime?
 
+  timeEntries TimeEntry[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -281,4 +285,34 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Time tracking
+// ──────────────────────────────────────────────────────────────
+
+enum TimeEntryKind {
+  ATTENDANCE // whole-workday clock in/out
+  TASK       // time spent on a specific task/project
+}
+
+model TimeEntry {
+  id         String        @id @default(cuid())
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  kind       TimeEntryKind
+  taskId     String?
+  task       Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  projectId  String?
+  project    Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  startedAt  DateTime      @default(now())
+  endedAt    DateTime? // null = currently running
+  note       String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([employeeId, kind, endedAt]) // find the running entry fast
+  @@index([employeeId, startedAt])
+  @@index([taskId])
+  @@index([projectId])
 }

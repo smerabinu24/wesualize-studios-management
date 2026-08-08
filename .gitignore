@@ -14,3 +14,7 @@ next-env.d.ts
 
 # MCP config (contains API key)
 .mcp.json
+
+# Large / local archives
+.mcp.zip
+*.zip

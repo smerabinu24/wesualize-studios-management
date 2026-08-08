@@ -38,6 +38,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: "Insights",
     items: [
+      { href: "/team-time", label: "Team Time", icon: Clock, perm: "analytics:view-team" },
       { href: "/reports", label: "Reports", icon: BarChart3, perm: "report:export" },
       { href: "/settings", label: "Settings", icon: Settings, perm: "settings:manage" },
     ],

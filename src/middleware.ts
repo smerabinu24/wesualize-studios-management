@@ -5,6 +5,6 @@ export const config = {
   matcher: [
     // Protect everything except auth/public routes, Next internals, and static
     // asset files (anything ending in a common image/font extension).
-    "/((?!api/auth|api/password|login|reset-password|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff2?)).*)",
+    "/((?!api/auth|api/password|api/health|login|reset-password|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff2?)).*)",
   ],
 };

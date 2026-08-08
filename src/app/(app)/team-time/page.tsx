@@ -18,7 +18,6 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
   const team = await getTeamTime(range);
 
   const totalTask = team.reduce((s, e) => s + e.taskHours, 0);
-  const totalAttendance = team.reduce((s, e) => s + e.attendanceHours, 0);
   const hasData = team.some((e) => e.entryCount > 0);
 
   return (
@@ -44,13 +43,12 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total attendance</p><p className="tabular text-2xl font-bold">{totalAttendance.toFixed(1)}h</p></Card>
+      <div className="mb-4 sm:max-w-xs">
         <Card className="p-4"><p className="text-xs text-muted-foreground">Total task hours</p><p className="tabular text-2xl font-bold">{totalTask.toFixed(1)}h</p></Card>
       </div>
 
       {!hasData ? (
-        <EmptyState icon={Clock} title="No time logged yet" description="Once employees start clocking in and running task timers, their hours appear here." />
+        <EmptyState icon={Clock} title="No time logged yet" description="Once employees log or track time on their tasks, their hours appear here." />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {team.filter((e) => e.entryCount > 0).map((e) => (
@@ -60,10 +58,7 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
                   <Avatar name={e.name} src={e.avatarUrl} size={36} />
                   <CardTitle>{e.name}</CardTitle>
                 </div>
-                <div className="flex gap-2">
-                  <Badge tone="muted">{e.attendanceHours.toFixed(1)}h clocked</Badge>
-                  <Badge tone="primary">{e.taskHours.toFixed(1)}h tasks</Badge>
-                </div>
+                <Badge tone="primary">{e.taskHours.toFixed(1)}h tasks</Badge>
               </CardHeader>
               <CardContent>
                 {e.byTask.length === 0 ? (

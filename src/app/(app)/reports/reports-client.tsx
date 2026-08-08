@@ -12,7 +12,7 @@ const REPORTS: { key: string; title: string; desc: string; icon: React.ElementTy
   { key: "resource-allocation", title: "Resource Allocation", desc: "Who is assigned to which project and at what allocation.", icon: Boxes },
   { key: "workload", title: "Workload Distribution", desc: "Open/overdue tasks and overload flags per employee.", icon: Scale },
   { key: "deadline-risk", title: "Deadline Risk", desc: "Projects ranked by deadline pressure and risk.", icon: CalendarClock },
-  { key: "time-log", title: "Time Log", desc: "Attendance and task hours per employee, this week.", icon: Clock },
+  { key: "time-log", title: "Time Log", desc: "Task hours logged per employee, this week.", icon: Clock },
 ];
 
 function exportUrl(key: string, format: string) {

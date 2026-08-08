@@ -61,11 +61,11 @@ export async function buildReport(key: ReportKey): Promise<ReportTable> {
       });
       const hrs = (s: Date, e: Date) => (e.getTime() - s.getTime()) / 3_600_000;
       const rows = employees.map((emp) => {
-        const att = emp.timeEntries.filter((t) => t.kind === "ATTENDANCE").reduce((h, t) => h + hrs(t.startedAt, t.endedAt!), 0);
-        const task = emp.timeEntries.filter((t) => t.kind === "TASK").reduce((h, t) => h + hrs(t.startedAt, t.endedAt!), 0);
-        return [emp.name, `${att.toFixed(1)}h`, `${task.toFixed(1)}h`, emp.timeEntries.length];
+        const taskEntries = emp.timeEntries.filter((t) => t.kind === "TASK");
+        const task = taskEntries.reduce((h, t) => h + hrs(t.startedAt, t.endedAt!), 0);
+        return [emp.name, `${task.toFixed(1)}h`, taskEntries.length];
       });
-      return { title: "Time Log (this week)", columns: ["Employee", "Attendance", "Task Hours", "Entries"], rows };
+      return { title: "Time Log (this week)", columns: ["Employee", "Task Hours", "Entries"], rows };
     }
     case "deadline-risk": {
       const health = await getProjectHealth();

@@ -79,7 +79,7 @@ export function TimeClient({ initialActive, totals, tasks, recent }: { initialAc
               </>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">You're not clocked in.</p>
+                <p className="text-sm text-muted-foreground">You&apos;re not clocked in.</p>
                 <Button disabled={busy} onClick={clock}><LogIn className="h-4 w-4" /> Clock in</Button>
               </>
             )}

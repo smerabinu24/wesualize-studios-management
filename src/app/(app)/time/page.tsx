@@ -50,6 +50,7 @@ export default async function TimePage() {
           kind: e.kind,
           label: e.kind === "TASK" ? e.task?.title ?? "Task" : "Workday",
           project: e.project?.name ?? "",
+          note: e.note,
           startedAt: e.startedAt.toISOString(),
           endedAt: e.endedAt!.toISOString(),
         }))}

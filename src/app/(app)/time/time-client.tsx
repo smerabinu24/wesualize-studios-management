@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Square, Clock, Plus, Trash2 } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge, Input, Label } from "@/components/ui/primitives";
+import { Button, Card, CardContent, CardHeader, CardTitle, Select, Badge, Input, Label, Textarea } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
 type Active = {
@@ -13,7 +13,7 @@ type Active = {
 type Totals = { todayTask: number; weekTask: number; todayAttendance: number; weekAttendance: number };
 type TaskOpt = { id: string; title: string; project: string };
 type ProjectOpt = { id: string; name: string };
-type Entry = { id: string; kind: string; label: string; project: string; startedAt: string; endedAt: string };
+type Entry = { id: string; kind: string; label: string; project: string; note: string | null; startedAt: string; endedAt: string };
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -52,6 +52,7 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
   const [newTask, setNewTask] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newProject, setNewProject] = useState("");
+  const [logNote, setLogNote] = useState("");
   const [logMsg, setLogMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const taskSecs = useElapsed(active.task?.startedAt ?? null);
 
@@ -84,16 +85,17 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
   async function logTime(e: React.FormEvent) {
     e.preventDefault();
     setLogMsg(null);
+    const note = logNote.trim() || undefined;
     const payload = newTask
-      ? { newTaskTitle: newTitle, projectId: newProject, date: logDate, hours: logHours }
-      : { taskId: logTaskId, date: logDate, hours: logHours };
+      ? { newTaskTitle: newTitle, projectId: newProject, date: logDate, hours: logHours, note }
+      : { taskId: logTaskId, date: logDate, hours: logHours, note };
     setBusy(true);
     const res = await fetch("/api/time/log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok) {
       setLogMsg({ type: "success", text: "Time logged." });
-      setLogHours(""); setLogTaskId(""); setNewTitle(""); setNewProject(""); setNewTask(false);
+      setLogHours(""); setLogTaskId(""); setNewTitle(""); setNewProject(""); setNewTask(false); setLogNote("");
       router.refresh();
     } else {
       setLogMsg({ type: "error", text: data.error ?? "Could not log time." });
@@ -177,6 +179,11 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
               <Input id="logHours" type="number" step="0.25" min="0.25" max="24" placeholder="e.g. 3.5" value={logHours} onChange={(e) => setLogHours(e.target.value)} required />
             </div>
 
+            <div className="sm:col-span-2 lg:col-span-4">
+              <Label htmlFor="logNote">Summary / description <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Textarea id="logNote" rows={3} maxLength={500} placeholder="What did you work on? e.g. Blocked out scene 4 layout and sent first pass for review." value={logNote} onChange={(e) => setLogNote(e.target.value)} />
+            </div>
+
             <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
               <Button type="submit" disabled={busy}><Plus className="h-4 w-4" /> Log time</Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => { setNewTask(!newTask); setLogTaskId(""); setNewTitle(""); setNewProject(""); }}>
@@ -205,7 +212,10 @@ export function TimeClient({ initialActive, totals, tasks, projects, recent }: {
                 return (
                   <Tr key={e.id}>
                     <Td><Badge tone={e.kind === "TASK" ? "primary" : "muted"}>{e.kind === "TASK" ? "Task" : "Workday"}</Badge></Td>
-                    <Td><span className="font-medium">{e.label}</span>{e.project && <span className="text-muted-foreground"> · {e.project}</span>}</Td>
+                    <Td>
+                      <span className="font-medium">{e.label}</span>{e.project && <span className="text-muted-foreground"> · {e.project}</span>}
+                      {e.note && <p className="mt-0.5 max-w-md text-xs text-muted-foreground">{e.note}</p>}
+                    </Td>
                     <Td className="text-sm text-muted-foreground">{fmtDay(e.startedAt)}</Td>
                     <Td className="tabular text-sm text-muted-foreground">{fmtClock(e.startedAt)}–{fmtClock(e.endedAt)}</Td>
                     <Td className="tabular text-right font-medium">{(secs / 3600).toFixed(2)}h</Td>

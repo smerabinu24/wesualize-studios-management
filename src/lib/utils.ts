@@ -17,7 +17,10 @@ export function daysUntil(d: Date | string | null | undefined) {
 
 export function currency(n: number | null | undefined) {
   if (n == null) return "—";
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n));
+  // Locale is pinned rather than left to the runtime: en-IN gives the ₹ symbol
+  // and Indian digit grouping (₹1,00,000 not ₹100,000), and keeps the server
+  // and browser rendering identical regardless of either machine's locale.
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(n));
 }
 
 export function initials(name: string) {

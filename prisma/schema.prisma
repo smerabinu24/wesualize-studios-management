@@ -180,6 +180,8 @@ model Project {
   priority    Priority      @default(MEDIUM)
   /// Set when hidden from active views (auto after 7 days completed, or manually). Data is retained.
   archivedAt  DateTime?
+  /// Cleared when someone manually restores the project — see Task.autoArchive.
+  autoArchive Boolean   @default(true)
 
   members     ProjectMember[]
   tasks       Task[]
@@ -247,6 +249,9 @@ model Task {
   completedAt    DateTime?
   /// Set when hidden from active views (auto after 7 days done, or manually). Data is retained.
   archivedAt     DateTime?
+  /// Cleared when someone manually restores the task, so the sweep does not
+  /// immediately re-archive work that was deliberately pulled back.
+  autoArchive    Boolean    @default(true)
 
   timeEntries   TimeEntry[]
   /// Extra people working the task alongside `assignee` (the primary owner).

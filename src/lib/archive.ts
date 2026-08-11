@@ -26,13 +26,23 @@ export async function archiveStaleCompleted() {
 
   const [tasks, projects] = await Promise.all([
     prisma.task.updateMany({
-      where: { status: TaskStatus.DONE, archivedAt: null, completedAt: { not: null, lt: before } },
+      where: {
+        status: TaskStatus.DONE,
+        archivedAt: null,
+        autoArchive: true, // never re-archive something a human restored
+        completedAt: { not: null, lt: before },
+      },
       data: { archivedAt: new Date() },
     }),
     // Project has no completedAt, so "completed and untouched since the
     // cutoff" stands in for it.
     prisma.project.updateMany({
-      where: { status: ProjectStatus.COMPLETED, archivedAt: null, updatedAt: { lt: before } },
+      where: {
+        status: ProjectStatus.COMPLETED,
+        archivedAt: null,
+        autoArchive: true,
+        updatedAt: { lt: before },
+      },
       data: { archivedAt: new Date() },
     }),
   ]);
@@ -40,18 +50,22 @@ export async function archiveStaleCompleted() {
   return { tasks: tasks.count, projects: projects.count };
 }
 
-/** Manually archive or restore a single task. */
+/**
+ * Manually archive or restore a task.
+ * Restoring opts the task out of the automatic sweep permanently — otherwise
+ * a long-completed task would be re-archived within minutes of being restored.
+ */
 export function setTaskArchived(id: string, archived: boolean) {
   return prisma.task.update({
     where: { id },
-    data: { archivedAt: archived ? new Date() : null },
+    data: archived ? { archivedAt: new Date() } : { archivedAt: null, autoArchive: false },
   });
 }
 
-/** Manually archive or restore a single project. */
+/** Manually archive or restore a project — same opt-out rule as tasks. */
 export function setProjectArchived(id: string, archived: boolean) {
   return prisma.project.update({
     where: { id },
-    data: { archivedAt: archived ? new Date() : null },
+    data: archived ? { archivedAt: new Date() } : { archivedAt: null, autoArchive: false },
   });
 }

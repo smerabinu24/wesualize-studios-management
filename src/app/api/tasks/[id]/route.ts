@@ -32,7 +32,10 @@ export const PATCH = withAuth("task:update-own", async (req, ctx, params) => {
       ...(completing ? { completedAt: new Date() } : {}),
       // Reopening also un-archives, otherwise the task would vanish from the board.
       ...(reopening ? { completedAt: null, archivedAt: null } : {}),
-      ...(body.archived !== undefined ? { archivedAt: body.archived ? new Date() : null } : {}),
+      // Restoring also opts out of the auto-sweep, otherwise a long-completed
+      // task would be re-archived within minutes of being pulled back.
+      ...(body.archived === true ? { archivedAt: new Date() } : {}),
+      ...(body.archived === false ? { archivedAt: null, autoArchive: false } : {}),
       ...(body.collaboratorIds
         ? {
             collaborators: {

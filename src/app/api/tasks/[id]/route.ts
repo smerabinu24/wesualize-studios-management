@@ -30,7 +30,19 @@ export const PATCH = withAuth("task:update-own", async (req, ctx, params) => {
       estimatedHours: body.estimatedHours,
       actualHours: body.actualHours,
       ...(completing ? { completedAt: new Date() } : {}),
-      ...(reopening ? { completedAt: null } : {}),
+      // Reopening also un-archives, otherwise the task would vanish from the board.
+      ...(reopening ? { completedAt: null, archivedAt: null } : {}),
+      ...(body.archived !== undefined ? { archivedAt: body.archived ? new Date() : null } : {}),
+      ...(body.collaboratorIds
+        ? {
+            collaborators: {
+              deleteMany: {},
+              create: body.collaboratorIds
+                .filter((id) => id && id !== body.assigneeId)
+                .map((employeeId) => ({ employeeId })),
+            },
+          }
+        : {}),
     },
   });
   await logActivity({ userId: ctx.user.id, action: "task.update", entityType: "Task", entityId: task.id, metadata: { status: task.status } });

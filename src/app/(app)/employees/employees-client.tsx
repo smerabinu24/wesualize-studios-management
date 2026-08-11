@@ -17,6 +17,8 @@ type Row = {
   avatarUrl: string | null;
   user: { email: string; role: string } | null;
   department: { name: string } | null;
+  /** Only sent to clients whose user holds `finance:manage`. */
+  hourlyRate?: string | number | null;
 };
 
 export function EmployeesClient({
@@ -24,11 +26,13 @@ export function EmployeesClient({
   workload,
   departments,
   canManage,
+  canManageFinance = false,
 }: {
   employees: Row[];
   workload: Record<string, EmployeeWorkload>;
   departments: Dept[];
   canManage: boolean;
+  canManageFinance?: boolean;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -213,6 +217,16 @@ export function EmployeesClient({
               <Input id="weeklyCapacityHours" name="weeklyCapacityHours" type="number" min={1} max={80} defaultValue={40} />
             </div>
           </div>
+          {canManageFinance && (
+            <div>
+              <Label htmlFor="hourlyRate">Hourly rate <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input id="hourlyRate" name="hourlyRate" type="number" min={0} step="0.01"
+                placeholder="e.g. 500" defaultValue={editing?.hourlyRate ?? ""} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Used to cost logged hours on the Project Costs page. Visible to administrators only.
+              </p>
+            </div>
+          )}
           {!editing && <p className="text-xs text-muted-foreground">Default password <code className="tabular">Password123!</code> is set; the employee can reset it.</p>}
         </form>
       </Modal>

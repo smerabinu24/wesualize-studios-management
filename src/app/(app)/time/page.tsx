@@ -2,8 +2,9 @@ import { PageHeader } from "@/components/page-header";
 import { TimeClient } from "./time-client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getActiveEntries, getEmployeeTotals, getRecentEntries } from "@/lib/time";
-import { EmptyState } from "@/components/ui/primitives";
+import { getActiveEntries, getEmployeeTotals, getRecentEntries, getContributions } from "@/lib/time";
+import { EmptyState, Card, CardContent, CardHeader, CardTitle } from "@/components/ui/primitives";
+import { ContributionChart } from "@/components/contribution-chart";
 import { Clock } from "lucide-react";
 
 export default async function TimePage() {
@@ -18,23 +19,40 @@ export default async function TimePage() {
     );
   }
 
-  const [active, totals, recent, tasks, projects] = await Promise.all([
+  const [active, totals, recent, tasks, projects, contributions] = await Promise.all([
     getActiveEntries(user.employeeId),
     getEmployeeTotals(user.employeeId),
     getRecentEntries(user.employeeId),
-    // Tasks the user can log against: their assigned, still-open tasks.
+    // Tasks the user can log against: still-open work they own or collaborate on.
     prisma.task.findMany({
-      where: { assigneeId: user.employeeId, status: { not: "DONE" } },
+      where: {
+        status: { not: "DONE" },
+        archivedAt: null,
+        OR: [
+          { assigneeId: user.employeeId },
+          { collaborators: { some: { employeeId: user.employeeId } } },
+        ],
+      },
       select: { id: true, title: true, project: { select: { name: true } } },
       orderBy: { dueDate: "asc" },
     }),
     // Projects — for logging against a brand-new task inline.
-    prisma.project.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.project.findMany({ where: { archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getContributions({ employeeId: user.employeeId }),
   ]);
 
   return (
     <div>
       <PageHeader title="Time Tracking" subtitle="Track time per task with a live timer or by logging hours." />
+
+      {/* Your year at a glance — one square per day, shaded by hours logged. */}
+      <Card className="mb-6">
+        <CardHeader><CardTitle>Your activity</CardTitle></CardHeader>
+        <CardContent>
+          <ContributionChart data={contributions.get(user.employeeId)} />
+        </CardContent>
+      </Card>
+
       <TimeClient
         initialActive={{
           attendance: active.attendance ? { startedAt: active.attendance.startedAt.toISOString() } : null,

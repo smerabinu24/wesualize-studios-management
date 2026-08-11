@@ -244,6 +244,95 @@ export async function getAllEntries(range: TimeRange = "week", take = 300) {
   }));
 }
 
+/** Local (not UTC) YYYY-MM-DD key, so a day maps to the studio's calendar day. */
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export type Contributions = {
+  /** Hours logged per YYYY-MM-DD. Days with no work are absent. */
+  days: Record<string, number>;
+  totalHours: number;
+  activeDays: number;
+  /** Consecutive active days ending today (or yesterday, so it survives the morning). */
+  currentStreak: number;
+  longestStreak: number;
+  bestDay: { date: string; hours: number } | null;
+};
+
+/**
+ * GitHub-style yearly activity, built from logged task time.
+ * Returns one entry per employee id so the team view costs a single query
+ * rather than one per person.
+ */
+export async function getContributions(opts: { employeeId?: string; days?: number } = {}) {
+  const span = opts.days ?? 371; // 53 whole weeks
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - span + 1);
+
+  const entries = await prisma.timeEntry.findMany({
+    where: {
+      kind: TimeEntryKind.TASK,
+      endedAt: { not: null },
+      startedAt: { gte: since },
+      ...(opts.employeeId ? { employeeId: opts.employeeId } : {}),
+    },
+    select: { employeeId: true, startedAt: true, endedAt: true },
+  });
+
+  const perEmployee = new Map<string, Record<string, number>>();
+  for (const e of entries) {
+    const map = perEmployee.get(e.employeeId) ?? {};
+    const k = dayKey(e.startedAt);
+    map[k] = (map[k] ?? 0) + hoursBetween(e.startedAt, e.endedAt!);
+    perEmployee.set(e.employeeId, map);
+  }
+
+  const result = new Map<string, Contributions>();
+  for (const [employeeId, days] of perEmployee) {
+    // Round once at the end so many short entries don't drift.
+    for (const k of Object.keys(days)) days[k] = Math.round(days[k] * 100) / 100;
+
+    const dates = Object.keys(days).sort();
+    let longest = 0;
+    let run = 0;
+    let prev: Date | null = null;
+    for (const d of dates) {
+      const cur = new Date(`${d}T00:00:00`);
+      run = prev && (cur.getTime() - prev.getTime()) / 86_400_000 === 1 ? run + 1 : 1;
+      longest = Math.max(longest, run);
+      prev = cur;
+    }
+
+    // Current streak: walk back from today, tolerating "hasn't logged yet today".
+    let current = 0;
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    if (!days[dayKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
+    while (days[dayKey(cursor)]) {
+      current += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const best = dates.reduce<{ date: string; hours: number } | null>(
+      (acc, d) => (acc == null || days[d] > acc.hours ? { date: d, hours: days[d] } : acc),
+      null
+    );
+
+    result.set(employeeId, {
+      days,
+      totalHours: Math.round(dates.reduce((s, d) => s + days[d], 0) * 100) / 100,
+      activeDays: dates.length,
+      currentStreak: current,
+      longestStreak: longest,
+      bestDay: best,
+    });
+  }
+
+  return result;
+}
+
 /** Delete one of the employee's own time entries; reverse its task-hour roll-in. */
 export async function deleteEntry(employeeId: string, entryId: string) {
   const entry = await prisma.timeEntry.findUnique({ where: { id: entryId } });

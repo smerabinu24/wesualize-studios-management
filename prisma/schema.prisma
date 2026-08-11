@@ -128,9 +128,12 @@ model Employee {
   status       EmployeeStatus @default(ACTIVE)
   avatarUrl    String?
   weeklyCapacityHours Int     @default(40)
+  /// Cost rate used for project expense totals. Null = not set / excluded from costing.
+  hourlyRate   Decimal?       @db.Decimal(10, 2)
 
   projectMemberships ProjectMember[]
   tasks              Task[]          @relation("TaskAssignee")
+  collaborations     TaskCollaborator[]
   ledProjects        Project[]       @relation("ProjectLead")
   timeEntries        TimeEntry[]
 
@@ -175,6 +178,8 @@ model Project {
   budget      Decimal?      @db.Decimal(12, 2)
   status      ProjectStatus @default(PLANNING)
   priority    Priority      @default(MEDIUM)
+  /// Set when hidden from active views (auto after 7 days completed, or manually). Data is retained.
+  archivedAt  DateTime?
 
   members     ProjectMember[]
   tasks       Task[]
@@ -189,6 +194,7 @@ model Project {
   @@index([clientId])
   @@index([leadId])
   @@index([deadline])
+  @@index([archivedAt])
 }
 
 // Join table: employees <-> projects (many-to-many) with an in-project role.
@@ -239,8 +245,12 @@ model Task {
   estimatedHours Float      @default(0)
   actualHours    Float      @default(0)
   completedAt    DateTime?
+  /// Set when hidden from active views (auto after 7 days done, or manually). Data is retained.
+  archivedAt     DateTime?
 
-  timeEntries TimeEntry[]
+  timeEntries   TimeEntry[]
+  /// Extra people working the task alongside `assignee` (the primary owner).
+  collaborators TaskCollaborator[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -250,6 +260,21 @@ model Task {
   @@index([status])
   @@index([dueDate])
   @@index([assigneeId, status]) // workload queries
+  @@index([archivedAt])
+  @@index([status, completedAt, archivedAt]) // auto-archive sweep
+}
+
+/// Additional assignees on a task. `Task.assignee` stays the primary owner so
+/// existing workload, reporting and time-tracking queries keep working.
+model TaskCollaborator {
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([taskId, employeeId])
+  @@index([employeeId])
 }
 
 // ──────────────────────────────────────────────────────────────

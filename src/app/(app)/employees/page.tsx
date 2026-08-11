@@ -16,15 +16,25 @@ export default async function EmployeesPage() {
     prisma.department.findMany({ orderBy: { name: "asc" } }),
   ]);
   const workload = Object.fromEntries(workloadList.map((w) => [w.id, w]));
+  const canManageFinance = can(user.role, "finance:manage");
+
+  // hourlyRate is salary data. Strip it from the payload entirely for anyone
+  // without finance:manage — hiding it in the UI alone would still ship the
+  // number to the browser.
+  const safeEmployees = employees.map(({ hourlyRate, ...e }) => ({
+    ...e,
+    ...(canManageFinance ? { hourlyRate: hourlyRate != null ? Number(hourlyRate) : null } : {}),
+  }));
 
   return (
     <div>
       <PageHeader title="Employees" subtitle="Manage the team, monitor workload and assignments." />
       <EmployeesClient
-        employees={employees as never}
+        employees={safeEmployees as never}
         workload={workload}
         departments={departments}
         canManage={can(user.role, "employee:manage")}
+        canManageFinance={canManageFinance}
       />
     </div>
   );

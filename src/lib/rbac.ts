@@ -15,7 +15,12 @@ export type Permission =
   | "analytics:view-team"
   | "report:export"
   | "settings:manage"
-  | "audit:view";
+  | "audit:view"
+  // Pay rates are salary data, so they get their own capabilities rather than
+  // riding on analytics. `finance:view` sees aggregate project cost;
+  // `finance:manage` sees and sets an individual's hourly rate.
+  | "finance:view"
+  | "finance:manage";
 
 const MATRIX: Record<Role, Permission[]> = {
   ADMIN: [
@@ -30,6 +35,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "report:export",
     "settings:manage",
     "audit:view",
+    "finance:view",
+    "finance:manage",
   ],
   TEAM_LEAD: [
     "project:manage-assigned",
@@ -37,6 +44,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "task:update-own",
     "analytics:view-team",
     "report:export",
+    // Leads see what a project costs, but cannot see or set individual rates.
+    "finance:view",
   ],
   EMPLOYEE: ["task:update-own"],
 };

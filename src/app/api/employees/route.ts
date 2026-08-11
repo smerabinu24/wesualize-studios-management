@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { withAuth, ok } from "@/lib/api";
 import { employeeCreateSchema } from "@/lib/validators";
+import { can } from "@/lib/rbac";
 import { logActivity } from "@/lib/audit";
 
 export const GET = withAuth("analytics:view-team", async (req) => {
@@ -35,6 +36,10 @@ export const POST = withAuth("employee:manage", async (req, ctx) => {
       status: body.status,
       avatarUrl: body.avatarUrl ?? undefined,
       weeklyCapacityHours: body.weeklyCapacityHours,
+      // Pay rate is salary data — silently ignored unless the caller can manage finance.
+      ...(body.hourlyRate != null && can(ctx.user.role, "finance:manage")
+        ? { hourlyRate: body.hourlyRate }
+        : {}),
       joiningDate: body.joiningDate ?? undefined,
       user: { create: { email: body.email.toLowerCase(), passwordHash, role: body.role } },
     },

@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, Briefcase, FolderKanban, CheckSquare,
-  BarChart3, Settings, LogOut, Menu, X, UserCog, Clock,
+  BarChart3, Settings, LogOut, Menu, X, UserCog, Clock, Wallet,
 } from "lucide-react";
 import { Logo } from "./logo";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ const NAV_SECTIONS: NavSection[] = [
     heading: "Insights",
     items: [
       { href: "/team-time", label: "Team Time", icon: Clock, perm: "analytics:view-team" },
+      { href: "/costs", label: "Project Costs", icon: Wallet, perm: "finance:view" },
       { href: "/reports", label: "Reports", icon: BarChart3, perm: "report:export" },
       { href: "/settings", label: "Settings", icon: Settings, perm: "settings:manage" },
     ],

@@ -12,6 +12,8 @@ export const employeeCreateSchema = z.object({
   status: z.nativeEnum(EmployeeStatus).default(EmployeeStatus.ACTIVE),
   avatarUrl: z.string().url().optional().nullable(),
   weeklyCapacityHours: z.coerce.number().int().min(1).max(80).default(40),
+  // Salary data — only writable by callers holding `finance:manage`.
+  hourlyRate: z.coerce.number().nonnegative().max(100000).optional().nullable(),
   password: z.string().min(8).optional(),
 });
 
@@ -51,5 +53,12 @@ export const taskCreateSchema = z.object({
   status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
   estimatedHours: z.coerce.number().nonnegative().default(0),
   actualHours: z.coerce.number().nonnegative().default(0),
+  /** Extra assignees alongside the primary `assigneeId`. */
+  collaboratorIds: z.array(z.string()).optional(),
 });
-export const taskUpdateSchema = taskCreateSchema.partial().omit({ projectId: true });
+export const taskUpdateSchema = taskCreateSchema
+  .partial()
+  .omit({ projectId: true })
+  .extend({ archived: z.boolean().optional() });
+
+export const projectArchiveSchema = z.object({ archived: z.boolean() });

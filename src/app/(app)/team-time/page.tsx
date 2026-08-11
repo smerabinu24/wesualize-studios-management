@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireCan } from "@/lib/session";
-import { getTeamTime, getAllEntries, type TimeRange } from "@/lib/time";
+import { getTeamTime, getAllEntries, getContributions, type TimeRange } from "@/lib/time";
+import { ContributionChart } from "@/components/contribution-chart";
 import { Card, CardContent, CardHeader, CardTitle, Avatar, Badge, EmptyState } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,11 @@ const RANGES: { key: TimeRange; label: string }[] = [
 export default async function TeamTimePage({ searchParams }: { searchParams: { range?: string } }) {
   await requireCan("analytics:view-team");
   const range = (["week", "month", "all"].includes(searchParams.range ?? "") ? searchParams.range : "week") as TimeRange;
-  const [team, entries] = await Promise.all([getTeamTime(range), getAllEntries(range)]);
+  const [team, entries, contributions] = await Promise.all([
+    getTeamTime(range),
+    getAllEntries(range),
+    getContributions(),
+  ]);
 
   const totalTask = team.reduce((s, e) => s + e.taskHours, 0);
   const hasData = team.some((e) => e.entryCount > 0);
@@ -62,6 +67,10 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
                 <Badge tone="primary">{e.taskHours.toFixed(1)}h tasks</Badge>
               </CardHeader>
               <CardContent>
+                {/* Their year of activity, independent of the range filter above. */}
+                <div className="mb-3 border-b border-border pb-3">
+                  <ContributionChart data={contributions.get(e.id)} compact />
+                </div>
                 {e.byTask.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No task time logged in this range.</p>
                 ) : (

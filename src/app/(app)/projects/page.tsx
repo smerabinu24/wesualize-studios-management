@@ -10,6 +10,8 @@ export default async function ProjectsPage() {
   const user = await requireCan("analytics:view-team");
   const [projects, healthList, clients, leads] = await Promise.all([
     prisma.project.findMany({
+      // Archived projects drop off the active list but are never deleted.
+      where: { archivedAt: null },
       include: {
         client: { select: { companyName: true, clientName: true } },
         lead: { select: { name: true } },

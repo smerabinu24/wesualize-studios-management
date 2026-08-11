@@ -44,8 +44,9 @@ const MATRIX: Record<Role, Permission[]> = {
     "task:update-own",
     "analytics:view-team",
     "report:export",
-    // Leads see what a project costs, but cannot see or set individual rates.
-    "finance:view",
+    // Deliberately no finance:* — pay rates and project costs are Admin-only.
+    // Showing a lead per-person cost alongside hours let them derive an exact
+    // rate by dividing one by the other, so the whole surface is withheld.
   ],
   EMPLOYEE: ["task:update-own"],
 };

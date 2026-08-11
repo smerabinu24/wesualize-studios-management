@@ -8,7 +8,8 @@ import { can } from "@/lib/rbac";
 import { currency } from "@/lib/utils";
 
 export default async function CostsPage() {
-  // `finance:view` — Admins and Team Leads. Individual rates need finance:manage.
+  // Admin-only: `finance:view` is granted to no other role. Anyone else is
+  // rejected here before a single cost figure is calculated.
   const user = await requireCan("finance:view");
   const showRates = can(user.role, "finance:manage");
   const costs = await getProjectCosts();

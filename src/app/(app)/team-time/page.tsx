@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireCan } from "@/lib/session";
-import { getTeamTime, type TimeRange } from "@/lib/time";
+import { getTeamTime, getAllEntries, type TimeRange } from "@/lib/time";
 import { Card, CardContent, CardHeader, CardTitle, Avatar, Badge, EmptyState } from "@/components/ui/primitives";
+import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const RANGES: { key: TimeRange; label: string }[] = [
@@ -15,7 +16,7 @@ const RANGES: { key: TimeRange; label: string }[] = [
 export default async function TeamTimePage({ searchParams }: { searchParams: { range?: string } }) {
   await requireCan("analytics:view-team");
   const range = (["week", "month", "all"].includes(searchParams.range ?? "") ? searchParams.range : "week") as TimeRange;
-  const team = await getTeamTime(range);
+  const [team, entries] = await Promise.all([getTeamTime(range), getAllEntries(range)]);
 
   const totalTask = team.reduce((s, e) => s + e.taskHours, 0);
   const hasData = team.some((e) => e.entryCount > 0);
@@ -79,6 +80,44 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Full log — every entry with its summary, readable without exporting. */}
+      {entries.length > 0 && (
+        <div className="mt-8">
+          <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+            <Clock className="h-4 w-4" /> All log entries
+            <span className="text-sm font-normal text-muted-foreground">({entries.length})</span>
+          </h3>
+          <Table>
+            <Thead>
+              <tr><Th>Employee</Th><Th>Task</Th><Th>Summary</Th><Th>Date</Th><Th className="text-right">Hours</Th></tr>
+            </Thead>
+            <tbody>
+              {entries.map((e) => (
+                <Tr key={e.id}>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      <Avatar name={e.employeeName} src={e.avatarUrl} size={22} />
+                      <span className="text-sm font-medium">{e.employeeName}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className="text-sm">{e.task}</span>
+                    {e.project && <p className="text-xs text-muted-foreground">{e.project}</p>}
+                  </Td>
+                  <Td className="max-w-sm text-sm text-muted-foreground">
+                    {e.note || <span className="italic opacity-60">—</span>}
+                  </Td>
+                  <Td className="whitespace-nowrap text-sm text-muted-foreground">
+                    {e.startedAt.toLocaleDateString([], { month: "short", day: "numeric" })}
+                  </Td>
+                  <Td className="tabular text-right font-medium">{e.hours.toFixed(2)}h</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
         </div>
       )}
     </div>

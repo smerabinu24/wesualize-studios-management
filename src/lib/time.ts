@@ -215,6 +215,35 @@ export async function getTeamTime(range: TimeRange = "week") {
   });
 }
 
+/**
+ * Every logged entry across the team for a range, newest first — powers the
+ * manager-facing log view so nobody has to export a PDF just to read it.
+ */
+export async function getAllEntries(range: TimeRange = "week", take = 300) {
+  const start = rangeStart(range);
+  const entries = await prisma.timeEntry.findMany({
+    where: { kind: TimeEntryKind.TASK, endedAt: { not: null }, startedAt: { gte: start } },
+    orderBy: { startedAt: "desc" },
+    take,
+    include: {
+      employee: { select: { id: true, name: true, avatarUrl: true } },
+      task: { select: { title: true } },
+      project: { select: { name: true } },
+    },
+  });
+
+  return entries.map((e) => ({
+    id: e.id,
+    employeeName: e.employee?.name ?? "Unknown",
+    avatarUrl: e.employee?.avatarUrl ?? null,
+    task: e.task?.title ?? "Task",
+    project: e.project?.name ?? "",
+    note: e.note,
+    startedAt: e.startedAt,
+    hours: hoursBetween(e.startedAt, e.endedAt!),
+  }));
+}
+
 /** Delete one of the employee's own time entries; reverse its task-hour roll-in. */
 export async function deleteEntry(employeeId: string, entryId: string) {
   const entry = await prisma.timeEntry.findUnique({ where: { id: entryId } });

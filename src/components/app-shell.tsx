@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, Briefcase, FolderKanban, CheckSquare,
-  BarChart3, Settings, LogOut, Menu, X, UserCog, Clock, Wallet,
+  BarChart3, Settings, LogOut, Menu, X, UserCog, Clock, Wallet, CalendarDays,
 } from "lucide-react";
 import { Logo } from "./logo";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: null },
       { href: "/tasks", label: "My Tasks", icon: CheckSquare, perm: "task:update-own" },
       { href: "/time", label: "Time Tracking", icon: Clock, perm: null },
+      { href: "/leave", label: "Leave", icon: CalendarDays, perm: "leave:manage-own" },
     ],
   },
   {

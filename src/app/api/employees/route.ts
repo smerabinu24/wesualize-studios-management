@@ -36,6 +36,7 @@ export const POST = withAuth("employee:manage", async (req, ctx) => {
       status: body.status,
       avatarUrl: body.avatarUrl ?? undefined,
       weeklyCapacityHours: body.weeklyCapacityHours,
+      ...(body.weeklyOffDay != null ? { weeklyOffDay: body.weeklyOffDay } : {}),
       // Pay rate is salary data — silently ignored unless the caller can manage finance.
       ...(body.hourlyRate != null && can(ctx.user.role, "finance:manage")
         ? { hourlyRate: body.hourlyRate }

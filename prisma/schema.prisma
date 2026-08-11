@@ -130,10 +130,14 @@ model Employee {
   weeklyCapacityHours Int     @default(40)
   /// Cost rate used for project expense totals. Null = not set / excluded from costing.
   hourlyRate   Decimal?       @db.Decimal(10, 2)
+  /// Weekly day off, JS convention: 0 = Sunday … 6 = Saturday. Defaults to
+  /// Sunday; moving it means the employee works Sundays and rests that day instead.
+  weeklyOffDay Int            @default(0)
 
   projectMemberships ProjectMember[]
   tasks              Task[]          @relation("TaskAssignee")
   collaborations     TaskCollaborator[]
+  leaves             Leave[]
   ledProjects        Project[]       @relation("ProjectLead")
   timeEntries        TimeEntry[]
 
@@ -320,6 +324,33 @@ model Notification {
 // ──────────────────────────────────────────────────────────────
 // Time tracking
 // ──────────────────────────────────────────────────────────────
+
+enum LeaveType {
+  /// Consumes one day of the monthly allowance (including anything carried over).
+  PAID
+  /// Recorded, but the allowance was already exhausted — nothing left to deduct.
+  UNPAID
+}
+
+/// One row per employee per calendar day off. Weekly offs are NOT stored here —
+/// they are derived from Employee.weeklyOffDay, so changing that day instantly
+/// reshapes the calendar without rewriting history.
+model Leave {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// Normalised to local midnight so one day maps to exactly one row.
+  date       DateTime
+  type       LeaveType @default(PAID)
+  reason     String?
+  /// Who recorded it — the employee themselves, or an admin acting for them.
+  createdById String?
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+}
 
 enum TimeEntryKind {
   ATTENDANCE // whole-workday clock in/out

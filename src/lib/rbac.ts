@@ -20,7 +20,10 @@ export type Permission =
   // riding on analytics. `finance:view` sees aggregate project cost;
   // `finance:manage` sees and sets an individual's hourly rate.
   | "finance:view"
-  | "finance:manage";
+  | "finance:manage"
+  // Everyone books their own leave; only managers see the whole team's.
+  | "leave:manage-own"
+  | "leave:view-team";
 
 const MATRIX: Record<Role, Permission[]> = {
   ADMIN: [
@@ -37,6 +40,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "audit:view",
     "finance:view",
     "finance:manage",
+    "leave:manage-own",
+    "leave:view-team",
   ],
   TEAM_LEAD: [
     "project:manage-assigned",
@@ -44,11 +49,13 @@ const MATRIX: Record<Role, Permission[]> = {
     "task:update-own",
     "analytics:view-team",
     "report:export",
+    "leave:manage-own",
+    "leave:view-team",
     // Deliberately no finance:* — pay rates and project costs are Admin-only.
     // Showing a lead per-person cost alongside hours let them derive an exact
     // rate by dividing one by the other, so the whole surface is withheld.
   ],
-  EMPLOYEE: ["task:update-own"],
+  EMPLOYEE: ["task:update-own", "leave:manage-own"],
 };
 
 export function can(role: Role | undefined | null, permission: Permission): boolean {

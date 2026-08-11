@@ -19,7 +19,10 @@ type Row = {
   department: { name: string } | null;
   /** Only sent to clients whose user holds `finance:manage`. */
   hourlyRate?: string | number | null;
+  weeklyOffDay?: number;
 };
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function EmployeesClient({
   employees,
@@ -216,6 +219,15 @@ export function EmployeesClient({
               <Label htmlFor="weeklyCapacityHours">Weekly capacity (h)</Label>
               <Input id="weeklyCapacityHours" name="weeklyCapacityHours" type="number" min={1} max={80} defaultValue={40} />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="weeklyOffDay">Weekly day off</Label>
+            <Select id="weeklyOffDay" name="weeklyOffDay" defaultValue={String(editing?.weeklyOffDay ?? 0)}>
+              {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Their non-working day each week. Moving it off Sunday means they work Sundays instead.
+            </p>
           </div>
           {canManageFinance && (
             <div>

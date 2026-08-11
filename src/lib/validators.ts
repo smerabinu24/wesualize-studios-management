@@ -14,6 +14,8 @@ export const employeeCreateSchema = z.object({
   weeklyCapacityHours: z.coerce.number().int().min(1).max(80).default(40),
   // Salary data — only writable by callers holding `finance:manage`.
   hourlyRate: z.coerce.number().nonnegative().max(100000).optional().nullable(),
+  // Weekly day off, 0 = Sunday … 6 = Saturday.
+  weeklyOffDay: z.coerce.number().int().min(0).max(6).optional(),
   password: z.string().min(8).optional(),
 });
 

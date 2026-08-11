@@ -30,6 +30,7 @@ export const PATCH = withAuth("employee:manage", async (req, ctx, params) => {
       status: body.status,
       avatarUrl: body.avatarUrl ?? undefined,
       weeklyCapacityHours: body.weeklyCapacityHours,
+      weeklyOffDay: body.weeklyOffDay,
       // Pay rate is salary data — silently ignored unless the caller can manage finance.
       ...(body.hourlyRate !== undefined && can(ctx.user.role, "finance:manage")
         ? { hourlyRate: body.hourlyRate }

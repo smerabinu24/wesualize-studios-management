@@ -23,7 +23,9 @@ export type Permission =
   | "finance:manage"
   // Everyone books their own leave; only managers see the whole team's.
   | "leave:manage-own"
-  | "leave:view-team";
+  | "leave:view-team"
+  // Approving or rejecting another employee's leave request.
+  | "leave:approve";
 
 const MATRIX: Record<Role, Permission[]> = {
   ADMIN: [
@@ -42,6 +44,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "finance:manage",
     "leave:manage-own",
     "leave:view-team",
+    "leave:approve",
   ],
   TEAM_LEAD: [
     "project:manage-assigned",

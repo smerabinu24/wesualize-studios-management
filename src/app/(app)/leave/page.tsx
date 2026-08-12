@@ -4,8 +4,9 @@ import { LeaveClient } from "./leave-client";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/rbac";
 import {
-  getLeaveBalance, getLeaves, getTeamLeave, MONTHLY_LEAVE_ALLOWANCE,
+  getLeaveBalance, getLeaves, getTeamLeave, getPendingLeaves, MONTHLY_LEAVE_ALLOWANCE,
 } from "@/lib/leave";
+import { ApprovalsClient } from "./approvals-client";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Avatar, EmptyState } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
@@ -23,10 +24,12 @@ export default async function LeavePage() {
     );
   }
 
-  const [balance, leaves, team] = await Promise.all([
+  const canApprove = can(user.role, "leave:approve");
+  const [balance, leaves, team, pending] = await Promise.all([
     getLeaveBalance(user.employeeId),
     getLeaves(user.employeeId),
     showTeam ? getTeamLeave() : Promise.resolve([]),
+    canApprove ? getPendingLeaves() : Promise.resolve([]),
   ]);
 
   return (
@@ -58,9 +61,27 @@ export default async function LeavePage() {
               • Once your balance reaches zero, further days are still recorded but marked{" "}
               <strong className="text-foreground">unpaid</strong>.
             </li>
+            <li>
+              • Every request needs{" "}
+              <strong className="text-foreground">administrator approval</strong>. A pending request already holds
+              the day against your balance; if it is rejected, the day is returned to you.
+            </li>
           </ul>
         </CardContent>
       </Card>
+
+      {canApprove && (
+        <ApprovalsClient
+          pending={pending.map((p) => ({
+            id: p.id,
+            employeeName: p.employee?.name ?? "Unknown",
+            avatarUrl: p.employee?.avatarUrl ?? null,
+            date: p.date.toISOString(),
+            type: p.type,
+            reason: p.reason,
+          }))}
+        />
+      )}
 
       {balance && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -95,6 +116,8 @@ export default async function LeavePage() {
           date: l.date.toISOString(),
           type: l.type,
           reason: l.reason,
+          status: l.status,
+          decisionNote: l.decisionNote,
         }))}
         balance={balance?.balance ?? 0}
         weeklyOffDay={balance?.weeklyOffDay ?? 0}
@@ -128,6 +151,7 @@ export default async function LeavePage() {
                   <Td className="tabular text-right text-sm">
                     {e.used}
                     {e.unpaidCount > 0 && <span className="text-warning"> +{e.unpaidCount} unpaid</span>}
+                    {e.pendingCount > 0 && <span className="text-muted-foreground"> ({e.pendingCount} pending)</span>}
                   </Td>
                   <Td className="text-right">
                     <Badge tone={e.balance > 0 ? "success" : "destructive"}>{e.balance}</Badge>

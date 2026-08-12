@@ -332,6 +332,15 @@ enum LeaveType {
   UNPAID
 }
 
+enum LeaveStatus {
+  /// Awaiting an administrator's decision. Still holds the day against the
+  /// balance so the same day cannot be requested twice over.
+  PENDING
+  APPROVED
+  /// Declined — releases the day back to the employee's balance.
+  REJECTED
+}
+
 /// One row per employee per calendar day off. Weekly offs are NOT stored here —
 /// they are derived from Employee.weeklyOffDay, so changing that day instantly
 /// reshapes the calendar without rewriting history.
@@ -347,9 +356,17 @@ model Leave {
   createdById String?
   createdAt  DateTime  @default(now())
 
+  status       LeaveStatus @default(PENDING)
+  /// The administrator who approved or rejected it.
+  decidedById  String?
+  decidedAt    DateTime?
+  /// Optional note explaining the decision, shown to the employee.
+  decisionNote String?
+
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
+  @@index([status])
 }
 
 enum TimeEntryKind {

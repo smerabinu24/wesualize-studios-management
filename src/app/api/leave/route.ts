@@ -28,6 +28,8 @@ export const POST = withAuth("leave:manage-own", async (req, ctx) => {
     date: new Date(y, m - 1, d),
     reason: body.reason,
     createdById: ctx.user.id,
+    // Whoever can approve leave does not need to approve their own entry.
+    autoApprove: can(ctx.user.role, "leave:approve"),
   });
 
   await logActivity({
@@ -35,7 +37,7 @@ export const POST = withAuth("leave:manage-own", async (req, ctx) => {
     action: "leave.mark",
     entityType: "Leave",
     entityId: leave.id,
-    metadata: { type: leave.type },
+    metadata: { type: leave.type, status: leave.status },
   });
-  return ok({ ok: true, type: leave.type }, 201);
+  return ok({ ok: true, type: leave.type, status: leave.status }, 201);
 });

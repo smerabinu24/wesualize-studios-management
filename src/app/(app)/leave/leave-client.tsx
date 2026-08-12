@@ -6,7 +6,16 @@ import { CalendarPlus, Trash2 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Badge } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
-type Leave = { id: string; date: string; type: string; reason: string | null };
+type Leave = {
+  id: string; date: string; type: string; reason: string | null;
+  status: string; decisionNote: string | null;
+};
+
+const STATUS_TONE: Record<string, "success" | "warning" | "destructive"> = {
+  APPROVED: "success",
+  PENDING: "warning",
+  REJECTED: "destructive",
+};
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmt = (iso: string) =>
@@ -45,9 +54,13 @@ export function LeaveClient({
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok) {
+      const unpaid = data.type === "UNPAID" ? " It is unpaid — your balance was already used up." : "";
       setMsg({
         type: "success",
-        text: data.type === "UNPAID" ? "Recorded as unpaid — your balance was already used up." : "Leave recorded.",
+        text:
+          data.status === "PENDING"
+            ? `Request submitted — awaiting approval.${unpaid}`
+            : `Leave recorded.${unpaid}`,
       });
       setReason("");
       router.refresh();
@@ -109,11 +122,15 @@ export function LeaveClient({
           <p className="text-sm text-muted-foreground">No leave recorded yet.</p>
         ) : (
           <Table>
-            <Thead><tr><Th>Date</Th><Th>Type</Th><Th>Reason</Th><Th className="text-right">Actions</Th></tr></Thead>
+            <Thead><tr><Th>Date</Th><Th>Status</Th><Th>Type</Th><Th>Reason</Th><Th className="text-right">Actions</Th></tr></Thead>
             <tbody>
               {leaves.map((l) => (
                 <Tr key={l.id}>
                   <Td className="text-sm font-medium">{fmt(l.date)}</Td>
+                  <Td>
+                    <Badge tone={STATUS_TONE[l.status] ?? "muted"}>{l.status.toLowerCase()}</Badge>
+                    {l.decisionNote && <p className="mt-0.5 max-w-xs text-xs text-muted-foreground">{l.decisionNote}</p>}
+                  </Td>
                   <Td><Badge tone={l.type === "PAID" ? "success" : "warning"}>{l.type.toLowerCase()}</Badge></Td>
                   <Td className="text-sm text-muted-foreground">{l.reason || <span className="italic opacity-60">—</span>}</Td>
                   <Td className="text-right">

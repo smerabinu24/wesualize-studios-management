@@ -13,7 +13,14 @@
  *     rather than silently pushing the balance negative.
  */
 import { prisma } from "@/lib/prisma";
-import { LeaveType } from "@prisma/client";
+import { LeaveStatus, LeaveType } from "@prisma/client";
+
+/**
+ * A request holds its day as soon as it is made, and keeps holding it once
+ * approved — only a rejection gives the day back. This stops someone
+ * requesting twenty days and still appearing to have a full balance.
+ */
+const HOLDS_BALANCE: LeaveStatus[] = [LeaveStatus.PENDING, LeaveStatus.APPROVED];
 
 /** Paid leave days credited per calendar month. */
 export const MONTHLY_LEAVE_ALLOWANCE = Number(process.env.MONTHLY_LEAVE_ALLOWANCE ?? 2);
@@ -43,7 +50,7 @@ export type LeaveBalance = {
   monthsAccrued: number;
   /** monthsAccrued × MONTHLY_LEAVE_ALLOWANCE. */
   credited: number;
-  /** PAID days taken across all time. */
+  /** PAID days held across all time — approved plus still-pending. */
   used: number;
   /** Days still available, including everything carried over. */
   balance: number;
@@ -52,6 +59,10 @@ export type LeaveBalance = {
   usedThisMonth: number;
   /** Days recorded once the allowance ran out. */
   unpaidCount: number;
+  /** Requests awaiting an administrator's decision. */
+  pendingCount: number;
+  /** Requests that were declined — these do not consume any balance. */
+  rejectedCount: number;
 };
 
 /** Is this date the employee's weekly off (and therefore not a working day)? */
@@ -68,7 +79,7 @@ export async function getLeaveBalance(employeeId: string): Promise<LeaveBalance 
 
   const leaves = await prisma.leave.findMany({
     where: { employeeId },
-    select: { date: true, type: true },
+    select: { date: true, type: true, status: true },
   });
 
   const now = new Date();
@@ -77,7 +88,9 @@ export async function getLeaveBalance(employeeId: string): Promise<LeaveBalance 
   const monthsAccrued = monthsInclusive(employee.joiningDate, now);
   const credited = monthsAccrued * MONTHLY_LEAVE_ALLOWANCE;
 
-  const paid = leaves.filter((l) => l.type === LeaveType.PAID);
+  // Rejected days are released — they cost the employee nothing.
+  const held = leaves.filter((l) => HOLDS_BALANCE.includes(l.status));
+  const paid = held.filter((l) => l.type === LeaveType.PAID);
   const used = paid.length;
   const usedThisMonth = paid.filter((l) => l.date >= monthStart).length;
   const usedBeforeThisMonth = used - usedThisMonth;
@@ -97,7 +110,9 @@ export async function getLeaveBalance(employeeId: string): Promise<LeaveBalance 
     balance: credited - used,
     carriedOver,
     usedThisMonth,
-    unpaidCount: leaves.length - used,
+    unpaidCount: held.length - used,
+    pendingCount: leaves.filter((l) => l.status === LeaveStatus.PENDING).length,
+    rejectedCount: leaves.filter((l) => l.status === LeaveStatus.REJECTED).length,
   };
 }
 
@@ -111,6 +126,8 @@ export async function markLeave(opts: {
   date: string | Date;
   reason?: string;
   createdById?: string;
+  /** Set when an administrator records the leave — it needs no further approval. */
+  autoApprove?: boolean;
 }) {
   const date = startOfDay(opts.date);
   const balance = await getLeaveBalance(opts.employeeId);
@@ -132,9 +149,19 @@ export async function markLeave(opts: {
     where: { employeeId_date: { employeeId: opts.employeeId, date } },
   });
   if (existing) {
-    const err = new Error("Leave is already recorded for that day.") as Error & { status?: number };
-    err.status = 409;
-    throw err;
+    // A previously rejected day is free again — replace it rather than
+    // blocking the employee from ever re-requesting that date.
+    if (existing.status === LeaveStatus.REJECTED) {
+      await prisma.leave.delete({ where: { id: existing.id } });
+    } else {
+      const err = new Error(
+        existing.status === LeaveStatus.PENDING
+          ? "You already have a request awaiting approval for that day."
+          : "Leave is already approved for that day."
+      ) as Error & { status?: number };
+      err.status = 409;
+      throw err;
+    }
   }
 
   return prisma.leave.create({
@@ -145,7 +172,62 @@ export async function markLeave(opts: {
       type: balance.balance > 0 ? LeaveType.PAID : LeaveType.UNPAID,
       reason: opts.reason,
       createdById: opts.createdById,
+      // An administrator booking leave IS the approval — no point making
+      // them approve their own entry afterwards.
+      ...(opts.autoApprove
+        ? { status: LeaveStatus.APPROVED, decidedById: opts.createdById, decidedAt: new Date() }
+        : {}),
     },
+  });
+}
+
+/** Approve or reject a pending request, and tell the employee. */
+export async function decideLeave(opts: {
+  id: string;
+  approve: boolean;
+  decidedById: string;
+  note?: string;
+}) {
+  const leave = await prisma.leave.findUnique({
+    where: { id: opts.id },
+    include: { employee: { select: { userId: true } } },
+  });
+  if (!leave) {
+    const err = new Error("Leave not found") as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+
+  const updated = await prisma.leave.update({
+    where: { id: opts.id },
+    data: {
+      status: opts.approve ? LeaveStatus.APPROVED : LeaveStatus.REJECTED,
+      decidedById: opts.decidedById,
+      decidedAt: new Date(),
+      decisionNote: opts.note,
+    },
+  });
+
+  if (leave.employee?.userId) {
+    const day = leave.date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    await prisma.notification.create({
+      data: {
+        userId: leave.employee.userId,
+        type: "SYSTEM",
+        title: `Leave ${opts.approve ? "approved" : "rejected"} — ${day}`,
+        link: "/leave",
+      },
+    });
+  }
+  return updated;
+}
+
+/** Requests awaiting a decision, oldest first so nothing sits forgotten. */
+export function getPendingLeaves() {
+  return prisma.leave.findMany({
+    where: { status: LeaveStatus.PENDING },
+    orderBy: { date: "asc" },
+    include: { employee: { select: { id: true, name: true, avatarUrl: true } } },
   });
 }
 
@@ -175,7 +257,8 @@ export async function getTeamLeave() {
     select: { id: true, name: true, avatarUrl: true, joiningDate: true, weeklyOffDay: true },
     orderBy: { name: "asc" },
   });
-  const leaves = await prisma.leave.findMany({ select: { employeeId: true, date: true, type: true } });
+  const all = await prisma.leave.findMany({ select: { employeeId: true, date: true, type: true, status: true } });
+  const leaves = all.filter((l) => HOLDS_BALANCE.includes(l.status));
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -196,6 +279,7 @@ export async function getTeamLeave() {
       balance: credited - paid.length,
       usedThisMonth: paid.filter((l) => l.date >= monthStart).length,
       unpaidCount: mine.length - paid.length,
+      pendingCount: all.filter((l) => l.employeeId === e.id && l.status === "PENDING").length,
     };
   });
 }

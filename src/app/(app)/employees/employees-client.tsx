@@ -231,7 +231,7 @@ export function EmployeesClient({
           </div>
           {canManageFinance && (
             <div>
-              <Label htmlFor="hourlyRate">Hourly rate <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor="hourlyRate">Hourly rate (₹) <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Input id="hourlyRate" name="hourlyRate" type="number" min={0} step="0.01"
                 placeholder="e.g. 500" defaultValue={editing?.hourlyRate ?? ""} />
               <p className="mt-1 text-xs text-muted-foreground">

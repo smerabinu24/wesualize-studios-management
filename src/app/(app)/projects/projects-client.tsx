@@ -131,7 +131,7 @@ export function ProjectsClient({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label htmlFor="deadline">Deadline</Label><Input id="deadline" name="deadline" type="date" /></div>
-            <div><Label htmlFor="budget">Budget (USD)</Label><Input id="budget" name="budget" type="number" min={0} /></div>
+            <div><Label htmlFor="budget">Budget (₹)</Label><Input id="budget" name="budget" type="number" min={0} placeholder="e.g. 250000" /></div>
           </div>
         </form>
       </Modal>

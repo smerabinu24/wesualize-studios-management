@@ -18,7 +18,15 @@ export default async function ProjectsPage() {
         _count: { select: { members: true, tasks: true } },
       },
       orderBy: { deadline: "asc" },
-    }),
+    }).then((rows) =>
+      // Decimal and Date are not serialisable across the server/client
+      // boundary, so hand the form plain values it can drop into inputs.
+      rows.map((p) => ({
+        ...p,
+        budget: p.budget != null ? Number(p.budget) : null,
+        deadline: p.deadline ? p.deadline.toISOString() : null,
+      }))
+    ),
     getProjectHealth(),
     prisma.client.findMany({ select: { id: true, companyName: true, clientName: true } }),
     prisma.employee.findMany({ where: { user: { role: { in: [Role.TEAM_LEAD, Role.ADMIN] } } }, select: { id: true, name: true } }),

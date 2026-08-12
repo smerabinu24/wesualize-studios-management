@@ -34,12 +34,15 @@ export const PATCH = withAuth("project:manage-assigned", async (req, ctx, params
     where: { id: params.id },
     data: {
       name: body.name,
-      description: body.description ?? undefined,
-      clientId: body.clientId ?? undefined,
-      leadId: body.leadId ?? undefined,
+      // null clears the field, undefined leaves it untouched. The previous
+      // `?? undefined` made both mean "leave alone", so a budget, deadline,
+      // client or lead could be set but never removed.
+      description: body.description,
+      clientId: body.clientId,
+      leadId: body.leadId,
       startDate: body.startDate ?? undefined,
-      deadline: body.deadline ?? undefined,
-      budget: body.budget ?? undefined,
+      deadline: body.deadline,
+      budget: body.budget,
       status: body.status,
       priority: body.priority,
     },

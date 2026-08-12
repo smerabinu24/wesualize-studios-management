@@ -28,12 +28,15 @@ export const POST = withAuth("project:manage-assigned", async (req, ctx) => {
   const project = await prisma.project.create({
     data: {
       name: body.name,
-      description: body.description ?? undefined,
-      clientId: body.clientId ?? undefined,
-      leadId: body.leadId ?? undefined,
+      // Passed through as-is: undefined means "not supplied", null means
+      // "explicitly empty". Collapsing null to undefined here is what made a
+      // blank client arrive as an invalid foreign key.
+      description: body.description,
+      clientId: body.clientId,
+      leadId: body.leadId,
       startDate: body.startDate ?? undefined,
-      deadline: body.deadline ?? undefined,
-      budget: body.budget ?? undefined,
+      deadline: body.deadline,
+      budget: body.budget,
       status: body.status,
       priority: body.priority,
       members: body.memberIds?.length

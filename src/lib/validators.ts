@@ -31,14 +31,25 @@ export const clientCreateSchema = z.object({
 });
 export const clientUpdateSchema = clientCreateSchema.partial();
 
+/**
+ * HTML forms submit "" for any field the user left alone, which broke three
+ * things: z.coerce.date("") is an Invalid Date (create failed outright),
+ * z.coerce.number("") is 0 (a blank budget silently became ₹0), and an empty
+ * clientId reached Prisma as an invalid foreign key.
+ *
+ * Normalising "" to null fixes all three, and gives edit forms a way to say
+ * "clear this field" — absent means leave alone, null means clear.
+ */
+const blankToNull = (v: unknown) => (v === "" ? null : v);
+
 export const projectCreateSchema = z.object({
   name: z.string().min(2),
-  description: z.string().optional().nullable(),
-  clientId: z.string().optional().nullable(),
-  leadId: z.string().optional().nullable(),
-  startDate: z.coerce.date().optional(),
-  deadline: z.coerce.date().optional().nullable(),
-  budget: z.coerce.number().nonnegative().optional().nullable(),
+  description: z.preprocess(blankToNull, z.string().nullable().optional()),
+  clientId: z.preprocess(blankToNull, z.string().nullable().optional()),
+  leadId: z.preprocess(blankToNull, z.string().nullable().optional()),
+  startDate: z.preprocess(blankToNull, z.coerce.date().nullable().optional()),
+  deadline: z.preprocess(blankToNull, z.coerce.date().nullable().optional()),
+  budget: z.preprocess(blankToNull, z.coerce.number().nonnegative().nullable().optional()),
   status: z.nativeEnum(ProjectStatus).default(ProjectStatus.PLANNING),
   priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
   memberIds: z.array(z.string()).optional(),

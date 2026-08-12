@@ -14,6 +14,7 @@ import type { Role } from "@prisma/client";
 import { can, type Permission, ROLE_LABELS } from "@/lib/rbac";
 import { ThemeToggle } from "./theme-toggle";
 import { Avatar, Button } from "./ui/primitives";
+import { NotificationBell, type NotificationItem } from "./notification-bell";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; perm: Permission | null };
 type NavSection = { heading: string; items: NavItem[] };
@@ -56,9 +57,16 @@ const NAV_SECTIONS: NavSection[] = [
 export function AppShell({
   children,
   user,
+  badges = {},
+  notifications = [],
+  unread = 0,
 }: {
   children: React.ReactNode;
   user: { name?: string | null; role: Role; avatarUrl: string | null; email?: string | null };
+  /** Per-route counts of things needing action, keyed by nav href. */
+  badges?: Record<string, number>;
+  notifications?: NotificationItem[];
+  unread?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -107,7 +115,15 @@ export function AppShell({
                     >
                       {active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {badges[item.href] > 0 && (
+                        <span
+                          className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold leading-none text-destructive-foreground"
+                          aria-label={`${badges[item.href]} needing attention`}
+                        >
+                          {badges[item.href] > 99 ? "99+" : badges[item.href]}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -129,6 +145,7 @@ export function AppShell({
             <h1 className="text-sm font-medium text-muted-foreground">Studio Management System</h1>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell items={notifications} unread={unread} />
             <ThemeToggle />
             <div className="flex items-center gap-2">
               <Avatar name={user.name ?? "User"} src={user.avatarUrl} size={32} />

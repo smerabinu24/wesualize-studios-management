@@ -2,21 +2,15 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireCan } from "@/lib/session";
-import { getTeamTime, getAllEntries, getContributions, type TimeRange } from "@/lib/time";
+import { getTeamTime, getAllEntries, getContributions, isTimeRange, TIME_RANGES, type TimeRange } from "@/lib/time";
 import { ContributionChart } from "@/components/contribution-chart";
 import { Card, CardContent, CardHeader, CardTitle, Avatar, Badge, EmptyState } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-const RANGES: { key: TimeRange; label: string }[] = [
-  { key: "week", label: "This week" },
-  { key: "month", label: "This month" },
-  { key: "all", label: "All time" },
-];
-
 export default async function TeamTimePage({ searchParams }: { searchParams: { range?: string } }) {
   await requireCan("analytics:view-team");
-  const range = (["week", "month", "all"].includes(searchParams.range ?? "") ? searchParams.range : "week") as TimeRange;
+  const range: TimeRange = isTimeRange(searchParams.range) ? searchParams.range : "week";
   const [team, entries, contributions] = await Promise.all([
     getTeamTime(range),
     getAllEntries(range),
@@ -25,6 +19,7 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
 
   const totalTask = team.reduce((s, e) => s + e.taskHours, 0);
   const hasData = team.some((e) => e.entryCount > 0);
+  const rangeLabel = TIME_RANGES.find((r) => r.key === range)?.label ?? "This week";
 
   return (
     <div>
@@ -32,8 +27,8 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
         title="Team Time"
         subtitle="Hours logged by each employee, broken down by task."
         action={
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
-            {RANGES.map((r) => (
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1">
+            {TIME_RANGES.map((r) => (
               <Link
                 key={r.key}
                 href={`/team-time?range=${r.key}`}
@@ -50,11 +45,22 @@ export default async function TeamTimePage({ searchParams }: { searchParams: { r
       />
 
       <div className="mb-4 sm:max-w-xs">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total task hours</p><p className="tabular text-2xl font-bold">{totalTask.toFixed(1)}h</p></Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">Total task hours · {rangeLabel.toLowerCase()}</p>
+          <p className="tabular text-2xl font-bold">{totalTask.toFixed(1)}h</p>
+        </Card>
       </div>
 
       {!hasData ? (
-        <EmptyState icon={Clock} title="No time logged yet" description="Once employees log or track time on their tasks, their hours appear here." />
+        <EmptyState
+          icon={Clock}
+          title={`No time logged ${rangeLabel.toLowerCase()}`}
+          description={
+            range === "today"
+              ? "Nothing has been logged yet today — most people log their hours at the end of the day."
+              : "Once employees log or track time on their tasks, their hours appear here."
+          }
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {team.filter((e) => e.entryCount > 0).map((e) => (

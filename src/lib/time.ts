@@ -159,26 +159,65 @@ export async function getEmployeeTotals(employeeId: string) {
 }
 
 /** Manager view: per-employee hours with a per-task/project breakdown, for a range. */
-export type TimeRange = "week" | "month" | "all";
+export type TimeRange = "today" | "yesterday" | "week" | "month" | "all";
 
-function rangeStart(range: TimeRange) {
-  if (range === "all") return new Date(0);
-  const d = new Date();
-  if (range === "month") {
-    d.setDate(1);
-  } else {
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+export const TIME_RANGES: { key: TimeRange; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
+  { key: "all", label: "All time" },
+];
+
+export function isTimeRange(v: unknown): v is TimeRange {
+  return TIME_RANGES.some((r) => r.key === v);
+}
+
+/**
+ * Start (and, for a single day, end) of a range in local time.
+ * Most ranges run from a point up to now, but "yesterday" is bounded at both
+ * ends — hence the optional `end` rather than a bare start date.
+ */
+function rangeBounds(range: TimeRange): { start: Date; end?: Date } {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+
+  switch (range) {
+    case "today":
+      return { start: midnight };
+    case "yesterday": {
+      const start = new Date(midnight);
+      start.setDate(start.getDate() - 1);
+      return { start, end: midnight }; // up to, but not including, today
+    }
+    case "month": {
+      const start = new Date(midnight);
+      start.setDate(1);
+      return { start };
+    }
+    case "week": {
+      const start = new Date(midnight);
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // Monday
+      return { start };
+    }
+    case "all":
+    default:
+      return { start: new Date(0) };
   }
-  d.setHours(0, 0, 0, 0);
-  return d;
+}
+
+/** Prisma filter for a range — adds an upper bound only when one applies. */
+function rangeFilter(range: TimeRange) {
+  const { start, end } = rangeBounds(range);
+  return end ? { gte: start, lt: end } : { gte: start };
 }
 
 export async function getTeamTime(range: TimeRange = "week") {
-  const start = rangeStart(range);
+  const startedAt = rangeFilter(range);
   const employees = await prisma.employee.findMany({
     include: {
       timeEntries: {
-        where: { endedAt: { not: null }, startedAt: { gte: start } },
+        where: { endedAt: { not: null }, startedAt },
         include: { task: { select: { title: true } }, project: { select: { name: true } } },
       },
     },
@@ -220,9 +259,8 @@ export async function getTeamTime(range: TimeRange = "week") {
  * manager-facing log view so nobody has to export a PDF just to read it.
  */
 export async function getAllEntries(range: TimeRange = "week", take = 300) {
-  const start = rangeStart(range);
   const entries = await prisma.timeEntry.findMany({
-    where: { kind: TimeEntryKind.TASK, endedAt: { not: null }, startedAt: { gte: start } },
+    where: { kind: TimeEntryKind.TASK, endedAt: { not: null }, startedAt: rangeFilter(range) },
     orderBy: { startedAt: "desc" },
     take,
     include: {

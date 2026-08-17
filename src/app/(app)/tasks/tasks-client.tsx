@@ -7,17 +7,14 @@ import { Plus, Copy, Volume2, VolumeX, Archive, ArchiveRestore, Trash2 } from "l
 import { Button, Input, Select, Label, Textarea, Badge, Avatar } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/modal";
 import { DeadlineTimer } from "@/components/deadline-timer";
+import { TaskDetailModal, type TaskDetail } from "./task-detail";
 import { celebrate, isSoundOn, setSoundOn } from "@/lib/celebrate";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { TASK_STATUSES, TASK_STATUS_LABEL, TASK_STATUS_DOT, PRIORITY_TONE } from "@/lib/labels";
 
 type Person = { id?: string; name: string; avatarUrl: string | null };
-type Task = {
-  id: string; title: string; status: string; priority: string; dueDate: string | null;
-  estimatedHours: number; project: { name: string }; assignee: Person | null;
-  collaborators?: Person[];
-};
+type Task = TaskDetail;
 type Opt = { id: string; name: string };
 
 /** Mirrors ARCHIVE_AFTER_DAYS in lib/archive.ts — display copy only. */
@@ -34,6 +31,7 @@ export function TasksClient({
   const [busy, setBusy] = useState(false);
 
   // Drag-and-drop state: which card is moving, and which column it's over.
+  const [detail, setDetail] = useState<Task | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
 
@@ -182,6 +180,10 @@ export function TasksClient({
                     draggable
                     onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; }}
                     onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                    onClick={() => setDetail(t)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter") setDetail(t); }}
                     className={cn(
                       "cursor-grab rounded-lg border border-border/80 bg-card p-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-all hover:shadow-[0_2px_8px_rgba(16,24,40,0.08)] active:cursor-grabbing",
                       dragId === t.id && "opacity-40"
@@ -217,7 +219,8 @@ export function TasksClient({
                       <span className="text-xs text-muted-foreground">{formatDate(t.dueDate)}</span>
                     </div>
 
-                    <div className="mt-2 flex items-center gap-1">
+                    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
+                    <div className="mt-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       {/* Keyboard/mobile-accessible fallback for the drag gesture. */}
                       <Select
                         className="h-8 flex-1 text-xs"
@@ -255,6 +258,17 @@ export function TasksClient({
           );
         })}
       </div>
+
+      {detail && (
+        <TaskDetailModal
+          task={detail}
+          employees={employees}
+          projects={projects}
+          canEdit={canAssign}
+          onClose={() => setDetail(null)}
+          onSaved={() => router.refresh()}
+        />
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="New task"
         footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button form="task-form" type="submit">Create</Button></>}>

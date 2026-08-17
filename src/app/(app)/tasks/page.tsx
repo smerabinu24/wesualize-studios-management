@@ -22,8 +22,10 @@ export default async function TasksPage({ searchParams }: { searchParams: { arch
           : {}),
       },
       include: {
-        project: { select: { name: true } },
-        assignee: { select: { name: true, avatarUrl: true } },
+        project: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        // User has no name of its own — it lives on the linked employee profile.
+        assignedBy: { select: { email: true, employee: { select: { name: true } } } },
         collaborators: { include: { employee: { select: { id: true, name: true, avatarUrl: true } } } },
       },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }],
@@ -36,9 +38,13 @@ export default async function TasksPage({ searchParams }: { searchParams: { arch
     prisma.employee.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
-  // Flatten the join rows into a plain list for the client component.
+  // Flatten the join rows and serialise dates for the client component.
   const shaped = tasks.map((t) => ({
     ...t,
+    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+    createdAt: t.createdAt.toISOString(),
+    completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+    assignedByName: t.assignedBy?.employee?.name ?? t.assignedBy?.email ?? null,
     collaborators: t.collaborators.map((c) => c.employee),
   }));
 

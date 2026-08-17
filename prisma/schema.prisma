@@ -338,6 +338,9 @@ enum LeaveKind {
   /// Working, just not from the studio. Approved the same way, but costs no
   /// allowance because the person is still working.
   WORK_FROM_HOME
+  /// Working from the studio. Only stored when the day was explicitly
+  /// allotted or requested; an ordinary unrecorded day is office by default.
+  WORK_FROM_OFFICE
 }
 
 enum LeaveStatus {
@@ -374,10 +377,21 @@ model Leave {
   /// Optional note explaining the decision, shown to the employee.
   decisionNote String?
 
+  /// A change the employee has asked for on an already-settled day, e.g. an
+  /// admin allotted office but they want home. Held separately from `kind` so
+  /// the existing arrangement survives if the change is refused.
+  requestedKind   LeaveKind?
+  requestedReason String?
+
+  /// True when an administrator assigned this day rather than the employee
+  /// asking for it — drives "allotted by the studio" in the UI.
+  allotted     Boolean  @default(false)
+
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
   @@index([status])
+  @@index([requestedKind])
 }
 
 enum TimeEntryKind {

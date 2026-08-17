@@ -25,6 +25,13 @@ const HOLDS_BALANCE: LeaveStatus[] = [LeaveStatus.PENDING, LeaveStatus.APPROVED]
 /** Paid leave days credited per calendar month. */
 export const MONTHLY_LEAVE_ALLOWANCE = Number(process.env.MONTHLY_LEAVE_ALLOWANCE ?? 2);
 
+/** Human labels for each kind — used in errors, notifications and the UI. */
+export const KIND_LABEL: Record<LeaveKind, string> = {
+  LEAVE: "Leave",
+  WORK_FROM_HOME: "Work from home",
+  WORK_FROM_OFFICE: "Work from office",
+};
+
 export const WEEKDAY_NAMES = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ] as const;
@@ -135,10 +142,12 @@ export async function markLeave(opts: {
   date: string | Date;
   reason?: string;
   createdById?: string;
-  /** Day off (default) or working from home. */
+  /** Day off (default), working from home, or working from the studio. */
   kind?: LeaveKind;
   /** Set when an administrator records the leave — it needs no further approval. */
   autoApprove?: boolean;
+  /** Assigned by the studio rather than asked for by the employee. */
+  allotted?: boolean;
 }) {
   const date = startOfDay(opts.date);
   const balance = await getLeaveBalance(opts.employeeId);
@@ -156,22 +165,60 @@ export async function markLeave(opts: {
     throw err;
   }
 
+  const kind = opts.kind ?? LeaveKind.LEAVE;
+
   const existing = await prisma.leave.findUnique({
     where: { employeeId_date: { employeeId: opts.employeeId, date } },
   });
+
   if (existing) {
     // A previously rejected day is free again — replace it rather than
     // blocking the employee from ever re-requesting that date.
     if (existing.status === LeaveStatus.REJECTED) {
       await prisma.leave.delete({ where: { id: existing.id } });
-    } else {
+    } else if (opts.autoApprove) {
+      // An administrator re-allotting simply overrides what was there.
+      return prisma.leave.update({
+        where: { id: existing.id },
+        data: {
+          kind,
+          type: kind === LeaveKind.LEAVE && balance.balance <= 0 ? LeaveType.UNPAID : LeaveType.PAID,
+          reason: opts.reason ?? existing.reason,
+          status: LeaveStatus.APPROVED,
+          decidedById: opts.createdById,
+          decidedAt: new Date(),
+          allotted: opts.allotted ?? existing.allotted,
+          // Any change the employee had asked for is now moot.
+          requestedKind: null,
+          requestedReason: null,
+        },
+      });
+    } else if (existing.kind === kind) {
       const err = new Error(
         existing.status === LeaveStatus.PENDING
           ? "You already have a request awaiting approval for that day."
-          : "Leave is already approved for that day."
+          : `That day is already set to ${KIND_LABEL[kind]}.`
       ) as Error & { status?: number };
       err.status = 409;
       throw err;
+    } else if (existing.status === LeaveStatus.PENDING) {
+      // Their own request, not yet decided — just amend it in place.
+      return prisma.leave.update({
+        where: { id: existing.id },
+        data: {
+          kind,
+          type: kind === LeaveKind.LEAVE && balance.balance <= 0 ? LeaveType.UNPAID : LeaveType.PAID,
+          reason: opts.reason ?? existing.reason,
+        },
+      });
+    } else {
+      // Already settled (often allotted by an admin) and they want something
+      // different — record it as a change request so the current arrangement
+      // survives if it is refused.
+      return prisma.leave.update({
+        where: { id: existing.id },
+        data: { requestedKind: kind, requestedReason: opts.reason },
+      });
     }
   }
 
@@ -179,15 +226,13 @@ export async function markLeave(opts: {
     data: {
       employeeId: opts.employeeId,
       date,
-      kind: opts.kind ?? LeaveKind.LEAVE,
-      // Only a day off can be unpaid. Working from home is always paid work,
-      // however little allowance is left.
-      type:
-        (opts.kind ?? LeaveKind.LEAVE) === LeaveKind.WORK_FROM_HOME || balance.balance > 0
-          ? LeaveType.PAID
-          : LeaveType.UNPAID,
+      kind,
+      // Only a day off can be unpaid. Working — from home or the studio — is
+      // always paid, however little allowance is left.
+      type: kind === LeaveKind.LEAVE && balance.balance <= 0 ? LeaveType.UNPAID : LeaveType.PAID,
       reason: opts.reason,
       createdById: opts.createdById,
+      allotted: opts.allotted ?? false,
       // An administrator booking leave IS the approval — no point making
       // them approve their own entry afterwards.
       ...(opts.autoApprove
@@ -195,6 +240,53 @@ export async function markLeave(opts: {
         : {}),
     },
   });
+}
+
+/**
+ * Assign working locations in bulk across a date range.
+ * Skips each person's weekly off, and refuses to overwrite an approved day
+ * off — someone on leave should not be silently rostered into the office.
+ */
+export async function allotDays(opts: {
+  employeeIds: string[];
+  from: Date;
+  to: Date;
+  kind: LeaveKind;
+  createdById: string;
+  reason?: string;
+}) {
+  const results = { allotted: 0, skippedWeeklyOff: 0, skippedOnLeave: 0 };
+
+  for (const employeeId of opts.employeeIds) {
+    const balance = await getLeaveBalance(employeeId);
+    if (!balance) continue;
+
+    for (const day = new Date(startOfDay(opts.from)); day <= opts.to; day.setDate(day.getDate() + 1)) {
+      const date = startOfDay(day);
+
+      if (isWeeklyOff(date, balance.weeklyOffDay)) { results.skippedWeeklyOff += 1; continue; }
+
+      const existing = await prisma.leave.findUnique({
+        where: { employeeId_date: { employeeId, date } },
+      });
+      if (existing && existing.kind === LeaveKind.LEAVE && existing.status === LeaveStatus.APPROVED) {
+        results.skippedOnLeave += 1;
+        continue;
+      }
+
+      await markLeave({
+        employeeId,
+        date,
+        kind: opts.kind,
+        reason: opts.reason,
+        createdById: opts.createdById,
+        autoApprove: true,
+        allotted: true,
+      });
+      results.allotted += 1;
+    }
+  }
+  return results;
 }
 
 /** Approve or reject a pending request, and tell the employee. */
@@ -214,23 +306,39 @@ export async function decideLeave(opts: {
     throw err;
   }
 
+  // A change request is decided separately from the day itself: approving it
+  // swaps the arrangement, refusing it leaves the existing one standing.
+  const isChange = leave.requestedKind != null;
+
   const updated = await prisma.leave.update({
     where: { id: opts.id },
-    data: {
-      status: opts.approve ? LeaveStatus.APPROVED : LeaveStatus.REJECTED,
-      decidedById: opts.decidedById,
-      decidedAt: new Date(),
-      decisionNote: opts.note,
-    },
+    data: isChange
+      ? {
+          ...(opts.approve ? { kind: leave.requestedKind!, allotted: false } : {}),
+          requestedKind: null,
+          requestedReason: null,
+          decidedById: opts.decidedById,
+          decidedAt: new Date(),
+          decisionNote: opts.note,
+        }
+      : {
+          status: opts.approve ? LeaveStatus.APPROVED : LeaveStatus.REJECTED,
+          decidedById: opts.decidedById,
+          decidedAt: new Date(),
+          decisionNote: opts.note,
+        },
   });
 
   if (leave.employee?.userId) {
     const day = leave.date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    const what = isChange
+      ? `Change to ${KIND_LABEL[leave.requestedKind!]}`
+      : KIND_LABEL[leave.kind];
     await prisma.notification.create({
       data: {
         userId: leave.employee.userId,
         type: "SYSTEM",
-        title: `Leave ${opts.approve ? "approved" : "rejected"} — ${day}`,
+        title: `${what} ${opts.approve ? "approved" : "rejected"} — ${day}`,
         link: "/leave",
       },
     });
@@ -238,10 +346,15 @@ export async function decideLeave(opts: {
   return updated;
 }
 
-/** Requests awaiting a decision, oldest first so nothing sits forgotten. */
+/**
+ * Everything awaiting a decision, oldest first: brand-new requests, plus
+ * change requests raised against days that were already settled.
+ */
 export function getPendingLeaves() {
   return prisma.leave.findMany({
-    where: { status: LeaveStatus.PENDING },
+    where: {
+      OR: [{ status: LeaveStatus.PENDING }, { requestedKind: { not: null } }],
+    },
     orderBy: { date: "asc" },
     include: { employee: { select: { id: true, name: true, avatarUrl: true } } },
   });

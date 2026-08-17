@@ -9,9 +9,14 @@ import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 type Leave = {
   id: string; date: string; type: string; reason: string | null;
   status: string; decisionNote: string | null; kind: string;
+  requestedKind?: string | null; allotted?: boolean;
 };
 
-const KIND_LABEL: Record<string, string> = { LEAVE: "Leave", WORK_FROM_HOME: "Work from home" };
+const KIND_LABEL: Record<string, string> = {
+  LEAVE: "Leave",
+  WORK_FROM_HOME: "Work from home",
+  WORK_FROM_OFFICE: "Work from office",
+};
 
 const STATUS_TONE: Record<string, "success" | "warning" | "destructive"> = {
   APPROVED: "success",
@@ -59,11 +64,12 @@ export function LeaveClient({
     setBusy(false);
     if (res.ok) {
       const unpaid = data.type === "UNPAID" ? " It is unpaid — your balance was already used up." : "";
-      const what = kind === "WORK_FROM_HOME" ? "Work-from-home request" : "Leave request";
+      const what = kind === "LEAVE" ? "Leave request" : `${KIND_LABEL[kind]} request`;
       setMsg({
         type: "success",
-        text:
-          data.status === "PENDING"
+        text: data.changeRequested
+          ? `Change to ${KIND_LABEL[data.requestedKind] ?? "that"} requested — your current arrangement stays until it is approved.`
+          : data.status === "PENDING"
             ? `${what} submitted — awaiting approval.${unpaid}`
             : `${what.replace(" request", "")} recorded.${unpaid}`,
       });
@@ -96,6 +102,7 @@ export function LeaveClient({
               <Select id="kind" value={kind} onChange={(e) => setKind(e.target.value)}>
                 <option value="LEAVE">Leave (day off)</option>
                 <option value="WORK_FROM_HOME">Work from home</option>
+                <option value="WORK_FROM_OFFICE">Work from office</option>
               </Select>
             </div>
             <div>
@@ -108,7 +115,7 @@ export function LeaveClient({
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4">
               <Button type="submit" disabled={busy || pickedIsWeeklyOff}>
-                <CalendarPlus className="h-4 w-4" /> {kind === "WORK_FROM_HOME" ? "Request WFH" : "Book leave"}
+                <CalendarPlus className="h-4 w-4" /> {kind === "LEAVE" ? "Book leave" : "Request day"}
               </Button>
               {pickedIsWeeklyOff && (
                 <span className="text-sm text-muted-foreground">
@@ -140,7 +147,17 @@ export function LeaveClient({
                 <Tr key={l.id}>
                   <Td className="text-sm font-medium">{fmt(l.date)}</Td>
                   <Td>
-                    <Badge tone={l.kind === "WORK_FROM_HOME" ? "primary" : "muted"}>{KIND_LABEL[l.kind] ?? l.kind}</Badge>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge tone={l.kind === "LEAVE" ? "muted" : "primary"}>{KIND_LABEL[l.kind] ?? l.kind}</Badge>
+                      {l.allotted && !l.requestedKind && (
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">allotted</span>
+                      )}
+                      {l.requestedKind && (
+                        <Badge tone="warning">
+                          change to {KIND_LABEL[l.requestedKind] ?? l.requestedKind} pending
+                        </Badge>
+                      )}
+                    </div>
                   </Td>
                   <Td>
                     <Badge tone={STATUS_TONE[l.status] ?? "muted"}>{l.status.toLowerCase()}</Badge>

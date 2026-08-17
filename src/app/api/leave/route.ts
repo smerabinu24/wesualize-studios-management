@@ -35,12 +35,26 @@ export const POST = withAuth("leave:manage-own", async (req, ctx) => {
     autoApprove: can(ctx.user.role, "leave:approve"),
   });
 
+  // A change request against an already-settled day leaves `status` alone and
+  // parks the proposal in requestedKind, so report that distinctly.
+  const changeRequested = leave.requestedKind != null;
+
   await logActivity({
     userId: ctx.user.id,
-    action: "leave.mark",
+    action: changeRequested ? "leave.request_change" : "leave.mark",
     entityType: "Leave",
     entityId: leave.id,
     metadata: { kind: leave.kind, type: leave.type, status: leave.status },
   });
-  return ok({ ok: true, kind: leave.kind, type: leave.type, status: leave.status }, 201);
+  return ok(
+    {
+      ok: true,
+      kind: leave.kind,
+      type: leave.type,
+      status: leave.status,
+      changeRequested,
+      requestedKind: leave.requestedKind,
+    },
+    201
+  );
 });

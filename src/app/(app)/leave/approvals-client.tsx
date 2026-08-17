@@ -12,10 +12,16 @@ type Pending = {
   date: string;
   type: string;
   kind: string;
+  requestedKind: string | null;
+  allotted: boolean;
   reason: string | null;
 };
 
-const KIND_LABEL: Record<string, string> = { LEAVE: "Leave", WORK_FROM_HOME: "Work from home" };
+const KIND_LABEL: Record<string, string> = {
+  LEAVE: "Leave",
+  WORK_FROM_HOME: "Work from home",
+  WORK_FROM_OFFICE: "Work from office",
+};
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -66,14 +72,21 @@ export function ApprovalsClient({ pending }: { pending: Pending[] }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{p.employeeName}</p>
-                    <Badge tone={p.kind === "WORK_FROM_HOME" ? "primary" : "muted"}>
-                      {KIND_LABEL[p.kind] ?? p.kind}
-                    </Badge>
+                    {p.requestedKind ? (
+                      <Badge tone="warning">
+                        Change · {KIND_LABEL[p.kind] ?? p.kind} → {KIND_LABEL[p.requestedKind] ?? p.requestedKind}
+                      </Badge>
+                    ) : (
+                      <Badge tone={p.kind === "LEAVE" ? "muted" : "primary"}>
+                        {KIND_LABEL[p.kind] ?? p.kind}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {fmt(p.date)}
-                    {p.kind === "LEAVE" && p.type === "UNPAID" && <span className="text-warning"> · unpaid (no balance left)</span>}
-                    {p.kind === "WORK_FROM_HOME" && <span> · costs no leave allowance</span>}
+                    {!p.requestedKind && p.kind === "LEAVE" && p.type === "UNPAID" && <span className="text-warning"> · unpaid (no balance left)</span>}
+                    {!p.requestedKind && p.kind !== "LEAVE" && <span> · costs no leave allowance</span>}
+                    {p.requestedKind && p.allotted && <span> · you allotted this day</span>}
                   </p>
                   {p.reason && <p className="mt-1 text-sm text-muted-foreground">&ldquo;{p.reason}&rdquo;</p>}
                 </div>

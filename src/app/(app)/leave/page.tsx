@@ -2,11 +2,13 @@ import { CalendarDays, Info } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { LeaveClient } from "./leave-client";
 import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import {
   getLeaveBalance, getLeaves, getTeamLeave, getPendingLeaves, MONTHLY_LEAVE_ALLOWANCE,
 } from "@/lib/leave";
 import { ApprovalsClient } from "./approvals-client";
+import { AllotClient } from "./allot-client";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Avatar, EmptyState } from "@/components/ui/primitives";
 import { Table, Thead, Th, Td, Tr } from "@/components/ui/table";
 
@@ -25,11 +27,18 @@ export default async function LeavePage() {
   }
 
   const canApprove = can(user.role, "leave:approve");
-  const [balance, leaves, team, pending] = await Promise.all([
+  const [balance, leaves, team, pending, roster] = await Promise.all([
     getLeaveBalance(user.employeeId),
     getLeaves(user.employeeId),
     showTeam ? getTeamLeave() : Promise.resolve([]),
     canApprove ? getPendingLeaves() : Promise.resolve([]),
+    canApprove
+      ? prisma.employee.findMany({
+          where: { status: "ACTIVE" },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -66,6 +75,11 @@ export default async function LeavePage() {
               a working day — it <strong className="text-foreground">does not use up any of your leave</strong>.
             </li>
             <li>
+              • Your working location can be <strong className="text-foreground">allotted by an administrator</strong>.
+              If a day is set to office but you need to work from home (or the reverse), request the change — the
+              allotted arrangement stands until it is approved.
+            </li>
+            <li>
               • Every request needs{" "}
               <strong className="text-foreground">administrator approval</strong>. A pending request already holds
               the day against your balance; if it is rejected, the day is returned to you.
@@ -73,6 +87,8 @@ export default async function LeavePage() {
           </ul>
         </CardContent>
       </Card>
+
+      {canApprove && <AllotClient employees={roster} />}
 
       {canApprove && (
         <ApprovalsClient
@@ -83,7 +99,9 @@ export default async function LeavePage() {
             date: p.date.toISOString(),
             type: p.type,
             kind: p.kind,
-            reason: p.reason,
+            requestedKind: p.requestedKind,
+            allotted: p.allotted,
+            reason: p.requestedReason ?? p.reason,
           }))}
         />
       )}
@@ -123,6 +141,8 @@ export default async function LeavePage() {
           reason: l.reason,
           status: l.status,
           decisionNote: l.decisionNote,
+          requestedKind: l.requestedKind,
+          allotted: l.allotted,
           kind: l.kind,
         }))}
         balance={balance?.balance ?? 0}

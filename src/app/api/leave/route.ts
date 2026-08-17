@@ -2,11 +2,13 @@ import { z } from "zod";
 import { withAuth, ok } from "@/lib/api";
 import { markLeave } from "@/lib/leave";
 import { can } from "@/lib/rbac";
+import { LeaveKind } from "@prisma/client";
 import { logActivity } from "@/lib/audit";
 
 const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
   reason: z.string().max(200).optional(),
+  kind: z.nativeEnum(LeaveKind).default(LeaveKind.LEAVE),
   /** Admins may book on someone else's behalf; everyone else books their own. */
   employeeId: z.string().optional(),
 });
@@ -27,6 +29,7 @@ export const POST = withAuth("leave:manage-own", async (req, ctx) => {
     employeeId: target,
     date: new Date(y, m - 1, d),
     reason: body.reason,
+    kind: body.kind,
     createdById: ctx.user.id,
     // Whoever can approve leave does not need to approve their own entry.
     autoApprove: can(ctx.user.role, "leave:approve"),
@@ -37,7 +40,7 @@ export const POST = withAuth("leave:manage-own", async (req, ctx) => {
     action: "leave.mark",
     entityType: "Leave",
     entityId: leave.id,
-    metadata: { type: leave.type, status: leave.status },
+    metadata: { kind: leave.kind, type: leave.type, status: leave.status },
   });
-  return ok({ ok: true, type: leave.type, status: leave.status }, 201);
+  return ok({ ok: true, kind: leave.kind, type: leave.type, status: leave.status }, 201);
 });

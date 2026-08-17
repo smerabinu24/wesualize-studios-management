@@ -13,7 +13,7 @@
  *     rather than silently pushing the balance negative.
  */
 import { prisma } from "@/lib/prisma";
-import { LeaveStatus, LeaveType } from "@prisma/client";
+import { LeaveKind, LeaveStatus, LeaveType } from "@prisma/client";
 
 /**
  * A request holds its day as soon as it is made, and keeps holding it once
@@ -63,6 +63,10 @@ export type LeaveBalance = {
   pendingCount: number;
   /** Requests that were declined — these do not consume any balance. */
   rejectedCount: number;
+  /** Approved work-from-home days, all time. */
+  wfhApproved: number;
+  /** Work-from-home days this month (approved or awaiting a decision). */
+  wfhThisMonth: number;
 };
 
 /** Is this date the employee's weekly off (and therefore not a working day)? */
@@ -77,10 +81,13 @@ export async function getLeaveBalance(employeeId: string): Promise<LeaveBalance 
   });
   if (!employee) return null;
 
-  const leaves = await prisma.leave.findMany({
+  const all = await prisma.leave.findMany({
     where: { employeeId },
-    select: { date: true, type: true, status: true },
+    select: { date: true, type: true, status: true, kind: true },
   });
+  // Working from home costs no allowance — the person is still working.
+  const leaves = all.filter((l) => l.kind === LeaveKind.LEAVE);
+  const wfh = all.filter((l) => l.kind === LeaveKind.WORK_FROM_HOME);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -111,8 +118,10 @@ export async function getLeaveBalance(employeeId: string): Promise<LeaveBalance 
     carriedOver,
     usedThisMonth,
     unpaidCount: held.length - used,
-    pendingCount: leaves.filter((l) => l.status === LeaveStatus.PENDING).length,
-    rejectedCount: leaves.filter((l) => l.status === LeaveStatus.REJECTED).length,
+    pendingCount: all.filter((l) => l.status === LeaveStatus.PENDING).length,
+    rejectedCount: all.filter((l) => l.status === LeaveStatus.REJECTED).length,
+    wfhApproved: wfh.filter((l) => l.status === LeaveStatus.APPROVED).length,
+    wfhThisMonth: wfh.filter((l) => HOLDS_BALANCE.includes(l.status) && l.date >= monthStart).length,
   };
 }
 
@@ -126,6 +135,8 @@ export async function markLeave(opts: {
   date: string | Date;
   reason?: string;
   createdById?: string;
+  /** Day off (default) or working from home. */
+  kind?: LeaveKind;
   /** Set when an administrator records the leave — it needs no further approval. */
   autoApprove?: boolean;
 }) {
@@ -168,8 +179,13 @@ export async function markLeave(opts: {
     data: {
       employeeId: opts.employeeId,
       date,
-      // Anything beyond the accrued balance is recorded but unpaid.
-      type: balance.balance > 0 ? LeaveType.PAID : LeaveType.UNPAID,
+      kind: opts.kind ?? LeaveKind.LEAVE,
+      // Only a day off can be unpaid. Working from home is always paid work,
+      // however little allowance is left.
+      type:
+        (opts.kind ?? LeaveKind.LEAVE) === LeaveKind.WORK_FROM_HOME || balance.balance > 0
+          ? LeaveType.PAID
+          : LeaveType.UNPAID,
       reason: opts.reason,
       createdById: opts.createdById,
       // An administrator booking leave IS the approval — no point making
@@ -257,8 +273,10 @@ export async function getTeamLeave() {
     select: { id: true, name: true, avatarUrl: true, joiningDate: true, weeklyOffDay: true },
     orderBy: { name: "asc" },
   });
-  const all = await prisma.leave.findMany({ select: { employeeId: true, date: true, type: true, status: true } });
-  const leaves = all.filter((l) => HOLDS_BALANCE.includes(l.status));
+  const all = await prisma.leave.findMany({ select: { employeeId: true, date: true, type: true, status: true, kind: true } });
+  const held = all.filter((l) => HOLDS_BALANCE.includes(l.status));
+  const leaves = held.filter((l) => l.kind === LeaveKind.LEAVE);
+  const wfh = held.filter((l) => l.kind === LeaveKind.WORK_FROM_HOME);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -280,6 +298,7 @@ export async function getTeamLeave() {
       usedThisMonth: paid.filter((l) => l.date >= monthStart).length,
       unpaidCount: mine.length - paid.length,
       pendingCount: all.filter((l) => l.employeeId === e.id && l.status === "PENDING").length,
+      wfhThisMonth: wfh.filter((l) => l.employeeId === e.id && l.date >= monthStart).length,
     };
   });
 }

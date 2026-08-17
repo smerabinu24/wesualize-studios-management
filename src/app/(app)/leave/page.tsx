@@ -34,13 +34,13 @@ export default async function LeavePage() {
 
   return (
     <div>
-      <PageHeader title="Leave" subtitle="Your leave balance, history and the studio's leave policy." />
+      <PageHeader title="Leave & Work From Home" subtitle="Request time off or a work-from-home day, and track your balance." />
 
       {/* The policy, stated plainly — everyone can read the rules they're held to. */}
       <Card className="mb-6 border-primary/30 bg-primary/5">
         <CardHeader className="flex-row items-center gap-2">
           <Info className="h-4 w-4 text-primary" />
-          <CardTitle>Leave policy</CardTitle>
+          <CardTitle>Leave &amp; WFH policy</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -62,6 +62,10 @@ export default async function LeavePage() {
               <strong className="text-foreground">unpaid</strong>.
             </li>
             <li>
+              • <strong className="text-foreground">Working from home</strong> is requested the same way, but it is
+              a working day — it <strong className="text-foreground">does not use up any of your leave</strong>.
+            </li>
+            <li>
               • Every request needs{" "}
               <strong className="text-foreground">administrator approval</strong>. A pending request already holds
               the day against your balance; if it is rejected, the day is returned to you.
@@ -78,6 +82,7 @@ export default async function LeavePage() {
             avatarUrl: p.employee?.avatarUrl ?? null,
             date: p.date.toISOString(),
             type: p.type,
+            kind: p.kind,
             reason: p.reason,
           }))}
         />
@@ -103,9 +108,9 @@ export default async function LeavePage() {
             <p className="mt-0.5 text-xs text-muted-foreground">of {MONTHLY_LEAVE_ALLOWANCE} credited</p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs text-muted-foreground">Total earned</p>
-            <p className="tabular text-2xl font-bold">{balance.credited}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{balance.used} taken so far</p>
+            <p className="text-xs text-muted-foreground">Work from home</p>
+            <p className="tabular text-2xl font-bold">{balance.wfhThisMonth}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">this month · {balance.wfhApproved} all time</p>
           </Card>
         </div>
       )}
@@ -118,6 +123,7 @@ export default async function LeavePage() {
           reason: l.reason,
           status: l.status,
           decisionNote: l.decisionNote,
+          kind: l.kind,
         }))}
         balance={balance?.balance ?? 0}
         weeklyOffDay={balance?.weeklyOffDay ?? 0}
@@ -126,7 +132,7 @@ export default async function LeavePage() {
       {showTeam && team.length > 0 && (
         <div className="mt-8">
           <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-            <CalendarDays className="h-4 w-4" /> Team leave balances
+            <CalendarDays className="h-4 w-4" /> Team leave &amp; WFH
           </h3>
           <Table>
             <Thead>
@@ -134,6 +140,7 @@ export default async function LeavePage() {
                 <Th>Employee</Th><Th>Weekly off</Th>
                 <Th className="text-right">This month</Th>
                 <Th className="text-right">Taken</Th>
+                <Th className="text-right">WFH (mo)</Th>
                 <Th className="text-right">Available</Th>
               </tr>
             </Thead>
@@ -153,6 +160,7 @@ export default async function LeavePage() {
                     {e.unpaidCount > 0 && <span className="text-warning"> +{e.unpaidCount} unpaid</span>}
                     {e.pendingCount > 0 && <span className="text-muted-foreground"> ({e.pendingCount} pending)</span>}
                   </Td>
+                  <Td className="tabular text-right text-sm">{e.wfhThisMonth || "—"}</Td>
                   <Td className="text-right">
                     <Badge tone={e.balance > 0 ? "success" : "destructive"}>{e.balance}</Badge>
                   </Td>

@@ -332,6 +332,14 @@ enum LeaveType {
   UNPAID
 }
 
+enum LeaveKind {
+  /// A day off — consumes the monthly allowance.
+  LEAVE
+  /// Working, just not from the studio. Approved the same way, but costs no
+  /// allowance because the person is still working.
+  WORK_FROM_HOME
+}
+
 enum LeaveStatus {
   /// Awaiting an administrator's decision. Still holds the day against the
   /// balance so the same day cannot be requested twice over.
@@ -350,6 +358,9 @@ model Leave {
   employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   /// Normalised to local midnight so one day maps to exactly one row.
   date       DateTime
+  /// Day off vs working from home. The unique index below means a day can be
+  /// one or the other, never both.
+  kind       LeaveKind @default(LEAVE)
   type       LeaveType @default(PAID)
   reason     String?
   /// Who recorded it — the employee themselves, or an admin acting for them.

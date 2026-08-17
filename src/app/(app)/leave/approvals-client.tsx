@@ -11,8 +11,11 @@ type Pending = {
   avatarUrl: string | null;
   date: string;
   type: string;
+  kind: string;
   reason: string | null;
 };
+
+const KIND_LABEL: Record<string, string> = { LEAVE: "Leave", WORK_FROM_HOME: "Work from home" };
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -42,7 +45,7 @@ export function ApprovalsClient({ pending }: { pending: Pending[] }) {
       <Card className="mb-6">
         <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
           <Inbox className="h-5 w-5" />
-          No leave requests waiting for approval.
+          No requests waiting for approval.
         </CardContent>
       </Card>
     );
@@ -51,7 +54,7 @@ export function ApprovalsClient({ pending }: { pending: Pending[] }) {
   return (
     <Card className="mb-6 border-warning/40">
       <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Leave requests awaiting your approval</CardTitle>
+        <CardTitle>Requests awaiting your approval</CardTitle>
         <Badge tone="warning">{items.length}</Badge>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -61,10 +64,16 @@ export function ApprovalsClient({ pending }: { pending: Pending[] }) {
               <div className="flex items-start gap-2">
                 <Avatar name={p.employeeName} src={p.avatarUrl} size={28} />
                 <div>
-                  <p className="text-sm font-medium">{p.employeeName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{p.employeeName}</p>
+                    <Badge tone={p.kind === "WORK_FROM_HOME" ? "primary" : "muted"}>
+                      {KIND_LABEL[p.kind] ?? p.kind}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {fmt(p.date)}
-                    {p.type === "UNPAID" && <span className="text-warning"> · unpaid (no balance left)</span>}
+                    {p.kind === "LEAVE" && p.type === "UNPAID" && <span className="text-warning"> · unpaid (no balance left)</span>}
+                    {p.kind === "WORK_FROM_HOME" && <span> · costs no leave allowance</span>}
                   </p>
                   {p.reason && <p className="mt-1 text-sm text-muted-foreground">&ldquo;{p.reason}&rdquo;</p>}
                 </div>

@@ -16,6 +16,11 @@ export default async function CostsPage() {
 
   const totalCost = costs.reduce((s, p) => s + p.cost, 0);
   const totalHours = costs.reduce((s, p) => s + p.hours, 0);
+  // Only projects that actually have a budget contribute to the comparison,
+  // otherwise the total would look under-spent purely because a budget is missing.
+  const budgeted = costs.filter((p) => p.budget != null && p.budget > 0);
+  const totalBudget = budgeted.reduce((s, p) => s + (p.budget ?? 0), 0);
+  const budgetedCount = budgeted.length;
   const anyUnrated = costs.some((p) => p.unratedNames.length > 0);
 
   return (
@@ -36,7 +41,17 @@ export default async function CostsPage() {
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <Card className="p-4">
               <p className="text-xs text-muted-foreground">Total labour cost</p>
-              <p className="tabular text-2xl font-bold">{currency(totalCost)}</p>
+              <p className="tabular text-2xl font-bold">
+                <span className={totalBudget > 0 && totalCost > totalBudget ? "text-destructive" : ""}>{currency(totalCost)}</span>
+                {totalBudget > 0 && (
+                  <span className="text-base font-normal text-muted-foreground"> / {currency(totalBudget)}</span>
+                )}
+              </p>
+              {totalBudget > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  across {budgetedCount} budgeted {budgetedCount === 1 ? "project" : "projects"}
+                </p>
+              )}
             </Card>
             <Card className="p-4">
               <p className="text-xs text-muted-foreground">Total hours logged</p>
@@ -61,20 +76,52 @@ export default async function CostsPage() {
 
           <div className="space-y-4">
             {costs.map((p) => {
-              const over = p.budget != null && p.cost > p.budget;
+              const hasBudget = p.budget != null && p.budget > 0;
+              const over = hasBudget && p.cost > p.budget!;
+              // Percentage of budget consumed; the bar caps at 100% but the
+              // number does not, so "180% used" stays visible.
+              const pct = hasBudget ? (p.cost / p.budget!) * 100 : 0;
+              const nearing = hasBudget && !over && pct >= 80;
+              const barTone = over ? "bg-destructive" : nearing ? "bg-warning" : "bg-primary";
+
               return (
                 <Card key={p.projectId}>
-                  <CardHeader className="flex-row items-center justify-between">
+                  <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
                     <CardTitle>{p.projectName}</CardTitle>
                     <div className="flex items-center gap-2">
-                      {p.budget != null && (
-                        <Badge tone={over ? "destructive" : "muted"}>
-                          {over ? "Over budget" : "Budget"} {currency(p.budget)}
-                        </Badge>
-                      )}
-                      <Badge tone="primary">{currency(p.cost)}</Badge>
+                      <span className="tabular text-sm font-semibold">
+                        <span className={over ? "text-destructive" : "text-foreground"}>{currency(p.cost)}</span>
+                        <span className="font-normal text-muted-foreground">
+                          {hasBudget ? ` / ${currency(p.budget)} spent` : " spent · no budget set"}
+                        </span>
+                      </span>
+                      {over && <Badge tone="destructive">Over budget</Badge>}
+                      {nearing && <Badge tone="warning">{Math.round(pct)}% used</Badge>}
                     </div>
                   </CardHeader>
+
+                  {hasBudget && (
+                    <div className="px-6 pb-1">
+                      <div
+                        className="h-2 overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${p.projectName} budget used`}
+                      >
+                        <div className={`h-full rounded-full ${barTone}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                      </div>
+                      <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                        <span>{Math.round(pct)}% of budget used</span>
+                        <span className="tabular">
+                          {over
+                            ? `${currency(p.cost - p.budget!)} over`
+                            : `${currency(p.budget! - p.cost)} remaining`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <CardContent>
                     <Table>
                       <Thead>
